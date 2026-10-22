@@ -22,7 +22,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
-        node: ['24']
+        node: ['22', '24']
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -87,11 +87,49 @@ jobs:
             if (bad.length) { console.error("Unexpected files in tarball:", bad); process.exit(1); }
           '
 
+  # Runtime floor: tooling (vitest 5) needs Node >= 22, the shipped code supports Node >= 20.
+  runtime-node20:
+    name: runtime smoke (node 20)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '20'
+      - name: Run built package on Node 20
+        run: |
+          node --version
+          node dist/cli.js --help
+          node -e "import('./dist/core/index.js').then(m => { if (!m.planRosCommand) process.exit(1); console.log('core ok'); })"
+          node -e "import('./dist/server/index.js').then(() => console.log('server ok'))"
+          # Snapshots need node:sqlite (Node >= 22.5): must fail with a clear message, not crash at import.
+          node -e "import('./dist/core/index.js').then(m => { try { new m.SnapshotStore(':memory:'); process.exit(1); } catch (e) { if (!/Node.js >= 22.5/.test(e.message)) process.exit(1); console.log('snapshot guard ok'); } })"
+
+  docker:
+    name: docker build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: docker build -t netscope-mcp:ci .
+      - run: docker run --rm --read-only --tmpfs /tmp netscope-mcp:ci --help
+
   # Single required status check for branch protection.
   ci-ok:
     name: ci-ok
     if: always()
-    needs: [test, pack]
+    needs: [test, pack, runtime-node20, docker]
     runs-on: ubuntu-latest
     steps:
       - name: Verify all jobs succeeded

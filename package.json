@@ -13,9 +13,19 @@
     "network"
   ],
   "license": "Apache-2.0",
+  "author": "netscope-mcp contributors",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/OWNER/netscope-mcp.git"
+  },
+  "homepage": "https://github.com/OWNER/netscope-mcp#readme",
+  "bugs": {
+    "url": "https://github.com/OWNER/netscope-mcp/issues"
+  },
+  "mcpName": "io.github.OWNER/netscope-mcp",
   "type": "module",
   "engines": {
-    "node": ">=24"
+    "node": ">=20"
   },
   "main": "./dist/core/index.js",
   "types": "./dist/core/index.d.ts",

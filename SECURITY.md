@@ -100,6 +100,15 @@ tool with any text; (2) another local process or a web page attempting to reach 
 - No guarantee is given for RouterOS versions or policy names that were not tested; run the
   acceptance tests in the read-only user guide on your version.
 
+## Known limitations
+
+The security corpus (`test/security/`) carries no open or skipped cases: every allowlist and
+redaction case passes as written, including the nine that were open gaps before 0.1.0 (SNMP OID
+arcs, `detail`/`proplist` handling, secret shapes in redaction and in error text). Remaining
+limitations are the ones listed in "Limits of the guarantee" above (redaction is best-effort,
+free-text fields can leak secrets, the allowlist is not a sandbox). Nothing known is deliberately
+left unfixed.
+
 ## Hardening checklist for operators
 
 1. Create the `mcp-readonly` group and user, and run the acceptance tests.

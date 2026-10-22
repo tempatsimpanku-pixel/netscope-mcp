@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { DatabaseSync } from 'node:sqlite';
+import { createRequire } from 'node:module';
+import type { DatabaseSync } from 'node:sqlite';
 import { planRosCommand } from './allow.js';
 import { resolveDevice } from './devices.js';
 import { PolicyDenied, DeviceNotFound, LoginDeniedError } from './errors.js';
@@ -46,6 +47,14 @@ export interface SnapRow {
 
 // ───────────────────────────── store ─────────────────────────────
 
+/** node:sqlite exists only on Node >= 22.5; load it on first use so the rest of the package runs on Node 20. */
+function openDatabase(file: string): DatabaseSync {
+  let mod: typeof import('node:sqlite');
+  try { mod = createRequire(import.meta.url)('node:sqlite') as typeof import('node:sqlite'); }
+  catch { throw new Error(`Snapshots need Node.js >= 22.5 (node:sqlite); running ${process.version}. Run without --snapshot or upgrade Node.`); }
+  return new mod.DatabaseSync(file);
+}
+
 export class SnapshotStore {
   readonly db: DatabaseSync;
   private readonly file: string;
@@ -57,7 +66,7 @@ export class SnapshotStore {
       // Create the file privately BEFORE sqlite does, so it never exists with looser bits.
       if (!fs.existsSync(file)) fs.closeSync(fs.openSync(file, 'wx', 0o600));
     }
-    this.db = new DatabaseSync(file);
+    this.db = openDatabase(file);
     if (file !== ':memory:') { this.db.exec('PRAGMA journal_mode=WAL'); this.db.exec('PRAGMA synchronous=NORMAL'); }
     this.db.exec(`CREATE TABLE IF NOT EXISTS snapshot (
       router_id TEXT PRIMARY KEY, alias TEXT NOT NULL, family TEXT NOT NULL DEFAULT '',

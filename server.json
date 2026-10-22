@@ -1,0 +1,30 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.OWNER/netscope-mcp",
+  "title": "netscope-mcp",
+  "description": "Read-only MCP server for ISP/NOC operators: inspect MikroTik RouterOS networks without giving the model write access.",
+  "repository": {
+    "url": "https://github.com/OWNER/netscope-mcp",
+    "source": "github"
+  },
+  "websiteUrl": "https://github.com/OWNER/netscope-mcp#readme",
+  "version": "0.1.0",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "netscope-mcp",
+      "version": "0.1.0",
+      "runtimeHint": "npx",
+      "transport": { "type": "stdio" },
+      "packageArguments": [
+        {
+          "type": "named",
+          "name": "--config",
+          "description": "Path to the routers YAML file (see routers.example.yaml). Use a read-only RouterOS account.",
+          "isRequired": true,
+          "format": "filepath"
+        }
+      ]
+    }
+  ]
+}
