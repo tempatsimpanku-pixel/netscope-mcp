@@ -78,8 +78,7 @@ describe('RouterOS allowlist: deny by default', () => {
     expect(() => planRosCommand('/ppp secret print proplist=name,password')).toThrow(PolicyDenied);
     const p = planRosCommand('/ppp secret print');
     expect(p.kind === 'api' && p.words.some((w) => w.startsWith('=.proplist=') && !/password/.test(w))).toBe(true);
-    expect(() => planRosCommand('/ppp secret print detail')).toThrow(PolicyDenied);
-    expect(() => planRosCommand('/user print detail')).toThrow(PolicyDenied);
+    for (const c of ['/ppp secret print detail', '/user print detail']) { const d = planRosCommand(c); expect(d.kind === 'api' && d.words.some((w) => w.startsWith('=.proplist='))).toBe(true); } // detail stays harmless: the safe columns are still forced
   });
 
   it('abbreviated menus are refused (only whole words on the positive list)', () => {

@@ -14,11 +14,18 @@ export function maskInlineSecrets(text: string): string {
   return text.replace(INLINE_SECRET, (_all, key: string, sep: string) => `${key}${sep}${MASK}`);
 }
 
+/** Heuristic for a value that is a credential rather than a name: >= 10 chars with a digit, a lowercase and an uppercase letter. */
+const looksLikeSecret = (v: string): boolean => v.length >= 10 && /\d/.test(v) && /[a-z]/.test(v) && /[A-Z]/.test(v);
+
 /** Mask secret values in raw text output (RouterOS key=value / export, generic "password xxx" configs, JSON). */
 export function redactText(raw: string): string {
   let section = '';
+  let inPem = false;
   // Join RouterOS continuation lines ("\\" + newline) so multi-line string values are masked whole.
   return raw.replace(/\r/g, '').replace(/\\\n[ \t]*/g, '').split('\n').map((line) => {
+    // PEM private-key blocks: the body is secret, the BEGIN/END markers are kept.
+    if (/-----BEGIN [A-Z ]*PRIVATE KEY-----/.test(line)) { inPem = !/-----END [A-Z ]*PRIVATE KEY-----/.test(line); return line.replace(/(-----BEGIN [A-Z ]*PRIVATE KEY-----)[\s\S]*?(-----END [A-Z ]*PRIVATE KEY-----)?$/, (_m, b: string, e?: string) => (e ? `${b}${MASK}${e}` : b)); }
+    if (inPem) { if (/-----END [A-Z ]*PRIVATE KEY-----/.test(line)) { inPem = false; return line; } return MASK; }
     const sec = /^\s*(\/[a-z0-9 /-]+?)\s*$/i.exec(line);
     if (sec) section = sec[1]!.toLowerCase();
     // JSON: "…password…": "x"
@@ -28,7 +35,14 @@ export function redactText(raw: string): string {
     // Secret pairs inside string values (source=, on-event=, comment=), then key=value / key="a b".
     out = maskInlineSecrets(out);
     out = out.replace(/([A-Za-z0-9_.-]+)=("[^"]*"|\S*)/g, (all, key: string) => (SECRET_KEY.test(key) ? `${key}=${MASK}` : all));
-    if (/\/snmp community/.test(section) || /^\s*\/snmp community\b/.test(line)) out = out.replace(/\bname=("[^"]*"|\S+)/g, `name=${MASK}`);
+    // The community string IS the `name` of an snmp community row: by section, by the row's own columns, or (section unknown) on any bare `add`.
+    const communityRow = /\/snmp community/.test(section) || /^\s*\/snmp community\b/.test(line) || /\b(?:read-access|write-access)=/.test(line) || /^\s*\/snmp\b/.test(section);
+    if (communityRow) out = out.replace(/\bname=("[^"]*"|\S+)/g, (_a, v: string) => (v.startsWith('"') ? `name="${MASK}"` : `name=${MASK}`));
+    // Section unknown (a chunk without its header): a credential-looking `name=` on an `add` row is masked, plain names are kept.
+    else if (section === '' && /^\s*add\s/.test(line)) out = out.replace(/\bname=("([^"]*)"|(\S+))/g, (all, _v: string, q?: string, b?: string) => (looksLikeSecret(q ?? b ?? '') ? `name=${MASK}` : all));
+    // Scripts: `:local mypw "x"` / `:global pass x`; free text: `pw is x`, `password: x`.
+    out = out.replace(/(:(?:local|global|set)\s+\$?[\w-]*(?:pw|pwd|pass|passwd|password|secret|psk|key|token|community|credential)[\w-]*\s+)("(?:[^"\\]|\\.)*"|\S+)/gi, `$1${MASK}`);
+    out = out.replace(/\b((?:pw|pwd|pass|passwd|password|passphrase|secret|psk|community|token|key)\s+(?:is|was|=|:)\s+)(?!\[redacted\])([^\s"';,]+)/gi, `$1${MASK}`);
     // Config-style text: a word containing password/passphrase/secret/psk/community/key/token masks the rest of the line.
     out = out.replace(/(^|[^A-Za-z0-9])([\w-]*(?:password|passphrase|secret|psk|community|key|token))\b([\s:'"]+)(?!\[redacted\]$)(\S.*)$/i, (_all, lead: string, k: string, sp: string) => `${lead}${k}${sp}${MASK}`);
     // Private keys (WireGuard/PKI): base64 of 43+ characters ending in "=" (44 for WireGuard).
@@ -46,7 +60,8 @@ export function scrubExact(text: string, secrets: ReadonlyArray<string | undefin
 
 /** Error messages carry nothing but our own text. */
 export function scrubMessage(message: string): string {
-  return message.replace(/(password|key|token|secret|community)\S*/gi, MASK).slice(0, 300);
+  // Keyword (+ attached characters) and the value that follows it ("password X", "community X", "key: X", "secret=X").
+  return message.replace(/(?:password|passwd|passphrase|pass|pw|key|token|secret|community|psk)\S*(?:\s+(?:is|was)\b|\s*[=:])?(?:\s+("[^"]*"|'[^']*'|[^\s,;]+))?/gi, MASK).slice(0, 300);
 }
 
 /** Limit output and cut on a line boundary so the last line never dangles half-way. */

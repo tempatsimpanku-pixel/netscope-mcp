@@ -1,0 +1,940 @@
+{
+ "mask": "{{MASK}}",
+ "note": "All data is synthetic. {{MASK}} stands for the implementation redaction marker.",
+ "cases": [
+  {
+   "id": "i-001",
+   "group": "i",
+   "kind": "ppp secret print terse",
+   "input": "0 name=alice service=pppoe password=Zq01-Syn-63zTok profile=default-pppoe",
+   "secrets": [
+    "Zq01-Syn-63zTok"
+   ],
+   "mustPreserve": [
+    "name=alice",
+    "service=pppoe",
+    "profile=default-pppoe"
+   ],
+   "expected": "0 name=alice service=pppoe password={{MASK}} profile=default-pppoe"
+  },
+  {
+   "id": "i-002",
+   "group": "i",
+   "kind": "ppp secret detail multi-line",
+   "input": " 0 name=\"alice\" service=pppoe caller-id=\"\" password=\"Zq02-Syn-4ixTok\"\n   profile=default remote-address=192.0.2.10 routes=\"\"",
+   "secrets": [
+    "Zq02-Syn-4ixTok"
+   ],
+   "mustPreserve": [
+    "name=\"alice\"",
+    "remote-address=192.0.2.10"
+   ],
+   "expected": " 0 name=\"alice\" service=pppoe caller-id=\"\" password={{MASK}}\n   profile=default remote-address=192.0.2.10 routes=\"\""
+  },
+  {
+   "id": "i-003",
+   "group": "i",
+   "kind": "ppp secret password with spaces",
+   "input": "name=bob password=\"Zq03-Syn-2xvTok with spaces\" profile=p",
+   "secrets": [
+    "Zq03-Syn-2xvTok"
+   ],
+   "mustPreserve": [
+    "name=bob",
+    "profile=p"
+   ],
+   "expected": "name=bob password={{MASK}} profile=p"
+  },
+  {
+   "id": "i-004",
+   "group": "i",
+   "kind": "ppp secret password with escaped quote",
+   "input": "name=bob password=\"Zq04-Syn-1ctTok\\\"tail\" profile=p",
+   "secrets": [
+    "Zq04-Syn-1ctTok"
+   ],
+   "mustPreserve": [
+    "name=bob"
+   ],
+   "expected": "name=bob password={{MASK}} profile=p"
+  },
+  {
+   "id": "i-005",
+   "group": "i",
+   "kind": "export ppp secret",
+   "input": "/ppp secret\nadd name=carol password=Zq05-Syn-7gsTok service=pppoe",
+   "secrets": [
+    "Zq05-Syn-7gsTok"
+   ],
+   "mustPreserve": [
+    "/ppp secret",
+    "name=carol"
+   ],
+   "expected": "/ppp secret\nadd name=carol password={{MASK}} service=pppoe"
+  },
+  {
+   "id": "i-006",
+   "group": "i",
+   "kind": "wireless security profile",
+   "input": "/interface wireless security-profiles\nadd name=sp1 mode=dynamic-keys authentication-types=wpa2-psk wpa2-pre-shared-key=Zq06-Syn-5vqTok supplicant-identity=\"\"",
+   "secrets": [
+    "Zq06-Syn-5vqTok"
+   ],
+   "mustPreserve": [
+    "name=sp1",
+    "authentication-types=wpa2-psk"
+   ],
+   "expected": "/interface wireless security-profiles\nadd name=sp1 mode=dynamic-keys authentication-types=wpa2-psk {{MASK}}"
+  },
+  {
+   "id": "i-007",
+   "group": "i",
+   "kind": "wifi passphrase",
+   "input": "/interface wifi security\nadd name=sec1 authentication-types=wpa2-psk,wpa3-psk passphrase=\"Zq07-Syn-4aoTok\"",
+   "secrets": [
+    "Zq07-Syn-4aoTok"
+   ],
+   "mustPreserve": [
+    "name=sec1"
+   ],
+   "expected": "/interface wifi security\nadd name=sec1 authentication-types=wpa2-psk,wpa3-psk {{MASK}}"
+  },
+  {
+   "id": "i-008",
+   "group": "i",
+   "kind": "wireless wpa-pre-shared-key",
+   "input": "0 name=sp2 wpa-pre-shared-key=\"Zq08-Syn-2pmTok\" wpa2-pre-shared-key=\"Zq08-Syn-2pmTokx\" ",
+   "secrets": [
+    "Zq08-Syn-2pmTok"
+   ],
+   "mustPreserve": [
+    "name=sp2"
+   ],
+   "expected": "0 name=sp2 wpa-pre-shared-key={{MASK}} wpa2-pre-shared-key={{MASK}} "
+  },
+  {
+   "id": "i-009",
+   "group": "i",
+   "kind": "snmp community name masked",
+   "input": "/snmp community\nadd addresses=192.0.2.0/24 name=Zq09-Syn-14kTok read-access=yes security=none",
+   "secrets": [
+    "Zq09-Syn-14kTok"
+   ],
+   "mustPreserve": [
+    "addresses=192.0.2.0/24",
+    "read-access=yes"
+   ],
+   "expected": "/snmp community\nadd addresses=192.0.2.0/24 name={{MASK}} read-access=yes security=none"
+  },
+  {
+   "id": "i-010",
+   "group": "i",
+   "kind": "snmp community print",
+   "input": " 0 name=\"Zq10-Syn-78jTok\" addresses=192.0.2.0/24 security=authorized read-access=yes write-access=no",
+   "secrets": [
+    "Zq10-Syn-78jTok"
+   ],
+   "mustPreserve": [
+    "addresses=192.0.2.0/24",
+    "write-access=no"
+   ],
+   "expected": " 0 name=\"{{MASK}}\" addresses=192.0.2.0/24 security=authorized read-access=yes write-access=no"
+  },
+  {
+   "id": "i-011",
+   "group": "i",
+   "kind": "snmp v3 keys",
+   "input": "add name=v3 security=private authentication-protocol=SHA1 authentication-password=Zq11-Syn-5nhTok encryption-protocol=AES encryption-password=Zq12-Syn-42fTok",
+   "secrets": [
+    "Zq11-Syn-5nhTok",
+    "Zq12-Syn-42fTok"
+   ],
+   "mustPreserve": [
+    "name=v3",
+    "authentication-protocol=SHA1"
+   ],
+   "expected": "add name=v3 security=private authentication-protocol=SHA1 authentication-password={{MASK}} encryption-protocol=AES encryption-password={{MASK}}"
+  },
+  {
+   "id": "i-012",
+   "group": "i",
+   "kind": "ipsec identity secret",
+   "input": "/ip ipsec identity\nadd auth-method=pre-shared-key peer=peer1 secret=\"Zq13-Syn-2hdTok\"",
+   "secrets": [
+    "Zq13-Syn-2hdTok"
+   ],
+   "mustPreserve": [
+    "peer=peer1"
+   ],
+   "expected": "/ip ipsec identity\nadd auth-method={{MASK}} peer=peer1 secret={{MASK}}"
+  },
+  {
+   "id": "i-013",
+   "group": "i",
+   "kind": "ipsec psk plain",
+   "input": "add peer=p2 auth-method=pre-shared-key-xauth secret=Zq14-Syn-wbTok username=u1 password=Zq14-Syn-wbTokx",
+   "secrets": [
+    "Zq14-Syn-wbTok"
+   ],
+   "mustPreserve": [
+    "peer=p2"
+   ],
+   "expected": "add peer=p2 auth-method={{MASK}} secret={{MASK}} username=u1 password={{MASK}}"
+  },
+  {
+   "id": "i-014",
+   "group": "i",
+   "kind": "radius secret",
+   "input": "/radius\nadd address=192.0.2.5 secret=Zq15-Syn-70aTok service=ppp",
+   "secrets": [
+    "Zq15-Syn-70aTok"
+   ],
+   "mustPreserve": [
+    "address=192.0.2.5",
+    "service=ppp"
+   ],
+   "expected": "/radius\nadd address=192.0.2.5 secret={{MASK}} service=ppp"
+  },
+  {
+   "id": "i-015",
+   "group": "i",
+   "kind": "user with password",
+   "input": "/user\nadd name=ops group=read password=Zq16-Syn-5f8Tok",
+   "secrets": [
+    "Zq16-Syn-5f8Tok"
+   ],
+   "mustPreserve": [
+    "name=ops",
+    "group=read"
+   ],
+   "expected": "/user\nadd name=ops group=read password={{MASK}}"
+  },
+  {
+   "id": "i-016",
+   "group": "i",
+   "kind": "api token / bearer",
+   "input": "/tool e-mail\nset server=192.0.2.25 user=mailer password=Zq17-Syn-3u6Tok from=noc@example.net",
+   "secrets": [
+    "Zq17-Syn-3u6Tok"
+   ],
+   "mustPreserve": [
+    "server=192.0.2.25",
+    "from=noc@example.net"
+   ],
+   "expected": "/tool e-mail\nset server=192.0.2.25 user=mailer password={{MASK}} from=noc@example.net"
+  },
+  {
+   "id": "i-017",
+   "group": "i",
+   "kind": "ddns/cloud style key",
+   "input": "set ddns-enabled=yes api-key=Zq18-Syn-294Tok update-interval=1m",
+   "secrets": [
+    "Zq18-Syn-294Tok"
+   ],
+   "mustPreserve": [
+    "ddns-enabled=yes"
+   ],
+   "expected": "set ddns-enabled=yes api-key={{MASK}} update-interval=1m"
+  },
+  {
+   "id": "i-018",
+   "group": "i",
+   "kind": "bgp md5 key",
+   "input": "/routing bgp connection\nadd name=peer-a remote.address=198.51.100.1 tcp-md5-key=Zq19-Syn-o2Tok as=64512",
+   "secrets": [
+    "Zq19-Syn-o2Tok"
+   ],
+   "mustPreserve": [
+    "name=peer-a",
+    "remote.address=198.51.100.1",
+    "as=64512"
+   ],
+   "expected": "/routing bgp connection\nadd name=peer-a remote.address=198.51.100.1 tcp-md5-key={{MASK}} as=64512"
+  },
+  {
+   "id": "i-019",
+   "group": "i",
+   "kind": "ospf auth key",
+   "input": "add area=backbone auth=md5 auth-id=1 auth-key=\"Zq20-Syn-6s1Tok\" interfaces=ether1",
+   "secrets": [
+    "Zq20-Syn-6s1Tok"
+   ],
+   "mustPreserve": [
+    "area=backbone",
+    "interfaces=ether1"
+   ],
+   "expected": "add area=backbone auth={{MASK}} auth-id={{MASK}} auth-key={{MASK}} interfaces=ether1"
+  },
+  {
+   "id": "i-020",
+   "group": "i",
+   "kind": "vrrp password",
+   "input": "add interface=ether2 vrid=10 authentication=ah password=Zq21-Syn-56zTok",
+   "secrets": [
+    "Zq21-Syn-56zTok"
+   ],
+   "mustPreserve": [
+    "interface=ether2",
+    "vrid=10"
+   ],
+   "expected": "add interface=ether2 vrid=10 authentication=ah password={{MASK}}"
+  },
+  {
+   "id": "i-021",
+   "group": "i",
+   "kind": "pin and pwd",
+   "input": "set sim-pin=Zq22-Syn-3lxTok pwd=Zq23-Syn-20vTok apn=internet",
+   "secrets": [
+    "Zq22-Syn-3lxTok",
+    "Zq23-Syn-20vTok"
+   ],
+   "mustPreserve": [
+    "apn=internet"
+   ],
+   "expected": "set sim-pin={{MASK}} pwd={{MASK}} apn=internet"
+  },
+  {
+   "id": "i-022",
+   "group": "i",
+   "kind": "pass and auth",
+   "input": "add name=x pass=Zq24-Syn-ftTok auth=Zq25-Syn-6jsTok",
+   "secrets": [
+    "Zq24-Syn-ftTok",
+    "Zq25-Syn-6jsTok"
+   ],
+   "mustPreserve": [
+    "name=x"
+   ],
+   "expected": "add name=x pass={{MASK}} auth={{MASK}}"
+  },
+  {
+   "id": "i-023",
+   "group": "i",
+   "kind": "uppercase key",
+   "input": "NAME=x PASSWORD=Zq26-Syn-4yqTok",
+   "secrets": [
+    "Zq26-Syn-4yqTok"
+   ],
+   "mustPreserve": [
+    "NAME=x"
+   ],
+   "expected": "NAME=x PASSWORD={{MASK}}"
+  },
+  {
+   "id": "i-024",
+   "group": "i",
+   "kind": "mixed case key",
+   "input": "name=x Pre-Shared-Key=Zq27-Syn-3doTok",
+   "secrets": [
+    "Zq27-Syn-3doTok"
+   ],
+   "mustPreserve": [
+    "name=x"
+   ],
+   "expected": "name=x Pre-Shared-Key={{MASK}}"
+  },
+  {
+   "id": "i-025",
+   "group": "i",
+   "kind": "secret at end of line no newline",
+   "input": "name=x password=Zq28-Syn-1smTok",
+   "secrets": [
+    "Zq28-Syn-1smTok"
+   ],
+   "mustPreserve": [
+    "name=x"
+   ],
+   "expected": "name=x password={{MASK}}"
+  },
+  {
+   "id": "i-026",
+   "group": "i",
+   "kind": "secret followed by CR",
+   "input": "name=x password=Zq29-Syn-7kTok\r\nname=y",
+   "secrets": [
+    "Zq29-Syn-7kTok"
+   ],
+   "mustPreserve": [
+    "name=x",
+    "name=y"
+   ],
+   "expected": "name=x password={{MASK}}\nname=y"
+  },
+  {
+   "id": "i-027",
+   "group": "i",
+   "kind": "two secrets one line",
+   "input": "name=x password=Zq30-Syn-6bjTok secret=Zq31-Syn-4qhTok comment=ok",
+   "secrets": [
+    "Zq30-Syn-6bjTok",
+    "Zq31-Syn-4qhTok"
+   ],
+   "mustPreserve": [
+    "name=x",
+    "comment=ok"
+   ],
+   "expected": "name=x password={{MASK}} secret={{MASK}} comment=ok"
+  },
+  {
+   "id": "i-028",
+   "group": "i",
+   "kind": "wireguard private key base64",
+   "input": "/interface wireguard\nadd name=wg0 private-key=\"DGJMPSVYbehknqtwz258/CFILORUXadgjmpsvy147+B=\" listen-port=13231",
+   "secrets": [],
+   "mustPreserve": [
+    "name=wg0",
+    "listen-port=13231"
+   ],
+   "expected": "/interface wireguard\nadd name=wg0 private-key={{MASK}} listen-port=13231"
+  },
+  {
+   "id": "i-029",
+   "group": "i",
+   "kind": "wireguard bare base64 (key name not recognised)",
+   "input": "0 name=wg1 mystery=FKPUZejoty38BGLQVafkpuz49CHMRWbglqv05+DINSX= mtu=1420",
+   "secrets": [],
+   "mustPreserve": [
+    "name=wg1",
+    "mtu=1420"
+   ],
+   "expected": "0 name=wg1 mystery={{MASK}} mtu=1420"
+  },
+  {
+   "id": "i-030",
+   "group": "i",
+   "kind": "wireguard preshared-key",
+   "input": "add allowed-address=10.255.0.2/32 interface=wg0 preshared-key=\"HOVcjqx4/GNUbipw3+FMTahov29ELSZgnu18DKRYfmt=\" public-key=\"LWhs3CNYju5EPalw7GRcny9ITep0/KVgr2BMXit4DOZ=\"",
+   "secrets": [],
+   "mustPreserve": [
+    "allowed-address=10.255.0.2/32"
+   ],
+   "expected": "add allowed-address=10.255.0.2/32 interface=wg0 preshared-key={{MASK}} public-key=\"{{MASK}}\""
+  },
+  {
+   "id": "i-031",
+   "group": "i",
+   "kind": "public-key name is NOT treated as secret",
+   "input": "add name=pk public-key=PUBKEY-SYN-0001",
+   "secrets": [],
+   "mustPreserve": [
+    "name=pk",
+    "public-key=PUBKEY-SYN-0001"
+   ],
+   "expected": "add name=pk public-key=PUBKEY-SYN-0001"
+  },
+  {
+   "id": "i-032",
+   "group": "i",
+   "kind": "script source multi-line with continuation",
+   "input": "/system script\nadd name=backup owner=admin policy=read source=\":local pw \\\"Zq32-Syn-35fTok\\\"; \\\n    /tool fetch url=http://192.0.2.9/ password=\\$pw; :log info done\"",
+   "secrets": [
+    "Zq32-Syn-35fTok"
+   ],
+   "mustPreserve": [
+    "name=backup",
+    "owner=admin"
+   ],
+   "expected": "/system script\nadd name=backup owner=admin policy=read source={{MASK}}"
+  },
+  {
+   "id": "i-033",
+   "group": "i",
+   "kind": "scheduler on-event",
+   "input": "/system scheduler\nadd interval=1d name=nightly on-event=\":global p \\\"Zq33-Syn-1kdTok\\\"; /system backup save password=\\$p\" start-time=03:00:00",
+   "secrets": [
+    "Zq33-Syn-1kdTok"
+   ],
+   "mustPreserve": [
+    "name=nightly",
+    "interval=1d",
+    "start-time=03:00:00"
+   ],
+   "expected": "/system scheduler\nadd interval=1d name=nightly on-event={{MASK}} start-time=03:00:00"
+  },
+  {
+   "id": "i-034",
+   "group": "i",
+   "kind": "netwatch up-script",
+   "input": "add host=192.0.2.1 up-script=\":global tok \\\"Zq34-Syn-7ocTok\\\"\" down-script=\"\" interval=30s",
+   "secrets": [
+    "Zq34-Syn-7ocTok"
+   ],
+   "mustPreserve": [
+    "host=192.0.2.1",
+    "interval=30s"
+   ],
+   "expected": "add host=192.0.2.1 up-script={{MASK}} down-script={{MASK}} interval=30s"
+  },
+  {
+   "id": "i-035",
+   "group": "i",
+   "kind": "dhcp lease-script",
+   "input": "add name=srv1 interface=ether3 lease-script=\":local k \\\"Zq35-Syn-63aTok\\\"\" address-pool=pool1",
+   "secrets": [
+    "Zq35-Syn-63aTok"
+   ],
+   "mustPreserve": [
+    "name=srv1",
+    "address-pool=pool1"
+   ],
+   "expected": "add name=srv1 interface=ether3 lease-script={{MASK}} address-pool=pool1"
+  },
+  {
+   "id": "i-036",
+   "group": "i",
+   "kind": "ppp profile on-up",
+   "input": "add name=prof on-up=\":local a \\\"Zq36-Syn-4i8Tok\\\"\" local-address=192.0.2.1",
+   "secrets": [
+    "Zq36-Syn-4i8Tok"
+   ],
+   "mustPreserve": [
+    "name=prof",
+    "local-address=192.0.2.1"
+   ],
+   "expected": "add name=prof on-up={{MASK}} local-address=192.0.2.1"
+  },
+  {
+   "id": "i-037",
+   "group": "i",
+   "kind": "script with no key=value syntax",
+   "input": ":local mypw \"Zq37-Syn-2x6Tok\"",
+   "secrets": [
+    "Zq37-Syn-2x6Tok"
+   ],
+   "mustPreserve": [],
+   "expected": ":local mypw \"{{MASK}}\"",
+   "exact": false
+  },
+  {
+   "id": "i-038",
+   "group": "i",
+   "kind": "comment with password=",
+   "input": "add address=192.0.2.9/24 comment=\"old gw password=Zq38-Syn-1c4Tok do not reuse\" interface=ether1",
+   "secrets": [
+    "Zq38-Syn-1c4Tok"
+   ],
+   "mustPreserve": [
+    "address=192.0.2.9/24",
+    "interface=ether1"
+   ],
+   "expected": "add address=192.0.2.9/24 comment=\"old gw password={{MASK}} do not reuse\" interface=ether1"
+  },
+  {
+   "id": "i-039",
+   "group": "i",
+   "kind": "comment with pass: colon",
+   "input": "add comment=\"login user pass: Zq39-Syn-7g3Tok\" name=x",
+   "secrets": [
+    "Zq39-Syn-7g3Tok"
+   ],
+   "mustPreserve": [
+    "name=x"
+   ],
+   "expected": "add comment=\"login user pass: {{MASK}}\" name=x"
+  },
+  {
+   "id": "i-040",
+   "group": "i",
+   "kind": "comment with secret in free text (no key=value)",
+   "input": "add comment=\"the wifi password is Zq40-Syn-5v1Tok ok\" name=x",
+   "secrets": [
+    "Zq40-Syn-5v1Tok"
+   ],
+   "mustPreserve": [],
+   "expected": "add comment=\"the wifi password {{MASK}}"
+  },
+  {
+   "id": "i-041",
+   "group": "i",
+   "kind": "comment with pw is",
+   "input": "add comment=\"cust router pw is Zq41-Syn-49zTok\" name=x",
+   "secrets": [
+    "Zq41-Syn-49zTok"
+   ],
+   "mustPreserve": [
+    "name=x"
+   ],
+   "expected": "add comment=\"cust router pw is {{MASK}}\" name=x"
+  },
+  {
+   "id": "i-042",
+   "group": "i",
+   "kind": "name field carrying a secret",
+   "input": "add name=Zq42-Syn-2oxTok interface=ether1",
+   "secrets": [
+    "Zq42-Syn-2oxTok"
+   ],
+   "mustPreserve": [],
+   "expected": "add name={{MASK}} interface=ether1"
+  },
+  {
+   "id": "i-043",
+   "group": "i",
+   "kind": "PEM private key block body",
+   "input": "-----BEGIN PRIVATE KEY-----\nZq43-Syn-13vTokZq43-Syn-13vTok\n-----END PRIVATE KEY-----",
+   "secrets": [
+    "Zq43-Syn-13vTok"
+   ],
+   "mustPreserve": [
+    "-----BEGIN PRIVATE KEY-----"
+   ],
+   "expected": "-----BEGIN PRIVATE KEY-----\n{{MASK}}{{MASK}}\n-----END PRIVATE KEY-----",
+   "exact": false
+  },
+  {
+   "id": "i-044",
+   "group": "i",
+   "kind": "control: ordinary print unchanged",
+   "input": " 0 name=\"ether1\" mtu=1500 mac-address=02:00:00:00:00:01 running=yes",
+   "secrets": [],
+   "mustPreserve": [
+    "name=\"ether1\"",
+    "mtu=1500",
+    "mac-address=02:00:00:00:00:01",
+    "running=yes"
+   ],
+   "expected": " 0 name=\"ether1\" mtu=1500 mac-address=02:00:00:00:00:01 running=yes"
+  },
+  {
+   "id": "i-045",
+   "group": "i",
+   "kind": "control: addresses unchanged",
+   "input": "0 address=192.0.2.1/24 network=192.0.2.0 interface=ether1",
+   "secrets": [],
+   "mustPreserve": [
+    "address=192.0.2.1/24",
+    "network=192.0.2.0"
+   ],
+   "expected": "0 address=192.0.2.1/24 network=192.0.2.0 interface=ether1"
+  },
+  {
+   "id": "i-046",
+   "group": "i",
+   "kind": "control: ipv6 unchanged",
+   "input": "0 address=2001:db8::1/64 advertise=yes",
+   "secrets": [],
+   "mustPreserve": [
+    "address=2001:db8::1/64"
+   ],
+   "expected": "0 address=2001:db8::1/64 advertise=yes"
+  },
+  {
+   "id": "i-047",
+   "group": "i",
+   "kind": "control: bgp session",
+   "input": "0 name=peer-a remote.address=198.51.100.1 remote.as=64512 established=yes uptime=3d1h",
+   "secrets": [],
+   "mustPreserve": [
+    "remote.address=198.51.100.1",
+    "remote.as=64512",
+    "uptime=3d1h"
+   ],
+   "expected": "0 name=peer-a remote.address=198.51.100.1 remote.as=64512 established=yes uptime=3d1h"
+  },
+  {
+   "id": "i-048",
+   "group": "i",
+   "kind": "control: short base64-like value kept",
+   "input": "0 name=x token-count=3 id=*1A",
+   "secrets": [],
+   "mustPreserve": [
+    "id=*1A"
+   ],
+   "expected": "0 name=x token-count={{MASK}} id=*1A",
+   "exact": false
+  },
+  {
+   "id": "i-049",
+   "group": "i",
+   "kind": "json password",
+   "input": "{\"name\":\"alice\",\"password\":\"Zq44-Syn-77uTok\",\"profile\":\"p\"}",
+   "secrets": [
+    "Zq44-Syn-77uTok"
+   ],
+   "mustPreserve": [],
+   "expected": "{\"name\":\"alice\",\"password\":\"{{MASK}}"
+  },
+  {
+   "id": "i-050",
+   "group": "i",
+   "kind": "json nested secret",
+   "input": "{\"a\":{\"b\":{\"community\":\"Zq45-Syn-5msTok\",\"ok\":true}}}",
+   "secrets": [
+    "Zq45-Syn-5msTok"
+   ],
+   "mustPreserve": [],
+   "expected": "{\"a\":{\"b\":{\"community\":\"{{MASK}}"
+  },
+  {
+   "id": "i-051",
+   "group": "i",
+   "kind": "json key variants",
+   "input": "{\"api-key\":\"Zq46-Syn-41qTok\",\"pre-shared-key\":\"Zq47-Syn-2goTok\",\"token\":123}",
+   "secrets": [
+    "Zq46-Syn-41qTok",
+    "Zq47-Syn-2goTok"
+   ],
+   "mustPreserve": [],
+   "expected": "{\"api-key\":\"{{MASK}}"
+  },
+  {
+   "id": "i-052",
+   "group": "i",
+   "kind": "json escaped quote in value",
+   "input": "{\"password\":\"Zq48-Syn-vmTok\\\"tail\",\"x\":1}",
+   "secrets": [
+    "Zq48-Syn-vmTok"
+   ],
+   "mustPreserve": [],
+   "expected": "{\"password\":\"{{MASK}}"
+  },
+  {
+   "id": "i-053",
+   "group": "i",
+   "kind": "json array of objects",
+   "input": "[{\"secret\":\"Zq49-Syn-6zlTok\"},{\"secret\":\"Zq50-Syn-5ejTok\"}]",
+   "secrets": [
+    "Zq49-Syn-6zlTok",
+    "Zq50-Syn-5ejTok"
+   ],
+   "mustPreserve": [],
+   "expected": "[{\"secret\":\"{{MASK}}"
+  },
+  {
+   "id": "i-054",
+   "group": "i",
+   "kind": "vyos set password",
+   "input": "set system login user admin authentication plaintext-password Zq51-Syn-3thTok",
+   "secrets": [
+    "Zq51-Syn-3thTok"
+   ],
+   "mustPreserve": [
+    "set system login user admin"
+   ],
+   "expected": "set system login user admin authentication plaintext-password {{MASK}}"
+  },
+  {
+   "id": "i-055",
+   "group": "i",
+   "kind": "vyos config block",
+   "input": "user ops {\n    authentication {\n        encrypted-password $6$syn$Zq52-Syn-28fTok\n        plaintext-password \"\"\n    }\n}",
+   "secrets": [
+    "Zq52-Syn-28fTok"
+   ],
+   "mustPreserve": [
+    "user ops {",
+    "authentication {"
+   ],
+   "expected": "user ops {\n    authentication {\n        encrypted-password {{MASK}}\n        plaintext-password \"{{MASK}}\n    }\n}"
+  },
+  {
+   "id": "i-056",
+   "group": "i",
+   "kind": "vyos ipsec psk",
+   "input": "pre-shared-secret Zq53-Syn-ndTok",
+   "secrets": [
+    "Zq53-Syn-ndTok"
+   ],
+   "mustPreserve": [],
+   "expected": "pre-shared-secret {{MASK}}"
+  },
+  {
+   "id": "i-057",
+   "group": "i",
+   "kind": "vyos snmp community",
+   "input": "community Zq54-Syn-6rcTok {\n    authorization ro\n}",
+   "secrets": [
+    "Zq54-Syn-6rcTok"
+   ],
+   "mustPreserve": [
+    "authorization ro"
+   ],
+   "expected": "community {{MASK}}\n    authorization ro\n}"
+  },
+  {
+   "id": "i-058",
+   "group": "i",
+   "kind": "vyos bgp password",
+   "input": "neighbor 192.0.2.2 {\n    password Zq55-Syn-56aTok\n    remote-as 64512\n}",
+   "secrets": [
+    "Zq55-Syn-56aTok"
+   ],
+   "mustPreserve": [
+    "neighbor 192.0.2.2 {",
+    "remote-as 64512"
+   ],
+   "expected": "neighbor 192.0.2.2 {\n    password {{MASK}}\n    remote-as 64512\n}"
+  },
+  {
+   "id": "i-059",
+   "group": "i",
+   "kind": "vyos quoted key",
+   "input": "key \"Zq56-Syn-3l8Tok\"",
+   "secrets": [
+    "Zq56-Syn-3l8Tok"
+   ],
+   "mustPreserve": [],
+   "expected": "key \"{{MASK}}"
+  },
+  {
+   "id": "i-060",
+   "group": "i",
+   "kind": "vyos wireguard private-key",
+   "input": "private-key Nan0BObo1CPcp2DQdq3ERer4FSfs5GTgt6HUhu7IViv=",
+   "secrets": [],
+   "mustPreserve": [],
+   "expected": "private-key {{MASK}}"
+  },
+  {
+   "id": "i-061",
+   "group": "i",
+   "kind": "vyos op-mode with token",
+   "input": "token: Zq57-Syn-206Tok",
+   "secrets": [
+    "Zq57-Syn-206Tok"
+   ],
+   "mustPreserve": [],
+   "expected": "token: {{MASK}}"
+  },
+  {
+   "id": "j-001",
+   "group": "j",
+   "fn": "scrubError",
+   "kind": "error text echoing password after known word",
+   "input": "login failed: password=Zq58-Syn-f4Tok rejected",
+   "secrets": [
+    "Zq58-Syn-f4Tok"
+   ],
+   "mustPreserve": []
+  },
+  {
+   "id": "j-002",
+   "group": "j",
+   "fn": "scrubError",
+   "kind": "error text with bare secret",
+   "input": "invalid password Zq59-Syn-6j3Tok",
+   "secrets": [
+    "Zq59-Syn-6j3Tok"
+   ],
+   "mustPreserve": []
+  },
+  {
+   "id": "j-003",
+   "group": "j",
+   "fn": "scrubError",
+   "kind": "error text with token",
+   "input": "bad token:Zq60-Syn-4y1Tok",
+   "secrets": [
+    "Zq60-Syn-4y1Tok"
+   ],
+   "mustPreserve": []
+  },
+  {
+   "id": "j-004",
+   "group": "j",
+   "fn": "scrubError",
+   "kind": "error text with community",
+   "input": "snmp community Zq61-Syn-3czTok refused",
+   "secrets": [
+    "Zq61-Syn-3czTok"
+   ],
+   "mustPreserve": []
+  },
+  {
+   "id": "j-005",
+   "group": "j",
+   "fn": "scrubError",
+   "kind": "error output limited to 300 chars",
+   "input": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx password=Zq62-Syn-1rxTok",
+   "secrets": [
+    "Zq62-Syn-1rxTok"
+   ],
+   "mustPreserve": []
+  },
+  {
+   "id": "j-006",
+   "group": "j",
+   "fn": "scrubError",
+   "kind": "control: plain error unchanged",
+   "input": "connection refused by 192.0.2.1:8729",
+   "secrets": [],
+   "mustPreserve": [
+    "connection refused by 192.0.2.1:8729"
+   ]
+  },
+  {
+   "id": "j-007",
+   "group": "j",
+   "fn": "scrubExact",
+   "kind": "exact: password in stderr",
+   "input": "sshpass: Permission denied for ops using Zq63-Syn-6vTok on 192.0.2.1",
+   "secrets": [
+    "Zq63-Syn-6vTok"
+   ],
+   "exactSecrets": [
+    "Zq63-Syn-6vTok"
+   ],
+   "mustPreserve": [
+    "192.0.2.1"
+   ]
+  },
+  {
+   "id": "j-008",
+   "group": "j",
+   "fn": "scrubExact",
+   "kind": "exact: password repeated",
+   "input": "Zq64-Syn-6auTok and again Zq64-Syn-6auTok",
+   "secrets": [
+    "Zq64-Syn-6auTok"
+   ],
+   "mustPreserve": []
+  },
+  {
+   "id": "j-009",
+   "group": "j",
+   "fn": "scrubExact",
+   "kind": "exact: username and password",
+   "input": "auth Zq65-Syn-4psTok/Zq66-Syn-34qTok failed",
+   "secrets": [
+    "Zq65-Syn-4psTok",
+    "Zq66-Syn-34qTok"
+   ],
+   "mustPreserve": []
+  },
+  {
+   "id": "j-010",
+   "group": "j",
+   "fn": "scrubExact",
+   "kind": "exact: secret in URL",
+   "input": "GET /rest?password=Zq67-Syn-1joTok&x=1",
+   "secrets": [
+    "Zq67-Syn-1joTok"
+   ],
+   "mustPreserve": [
+    "x=1"
+   ]
+  },
+  {
+   "id": "j-011",
+   "group": "j",
+   "fn": "scrubExact",
+   "kind": "exact: secret inside JSON error",
+   "input": "{\"error\":\"bad\",\"detail\":\"Zq68-Syn-7nnTok\"}",
+   "secrets": [
+    "Zq68-Syn-7nnTok"
+   ],
+   "mustPreserve": []
+  },
+  {
+   "id": "j-012",
+   "group": "j",
+   "fn": "scrubExact",
+   "kind": "exact: base64 of secret not covered",
+   "input": "Authorization: Basic b3BzOlpxNjktU3luLTYybFRvaw==",
+   "secrets": [
+    "Zq69-Syn-62lTok"
+   ],
+   "mustPreserve": []
+  }
+ ]
+}

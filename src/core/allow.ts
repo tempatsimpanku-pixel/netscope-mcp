@@ -205,12 +205,12 @@ export function planRosCommand(text: unknown): RosPlan {
     const joined = path.join(' ');
     if (!ROS_PRINT_PATHS.has(joined)) deny(`print /${joined} is refused: only full menus on the positive list (no abbreviations): ${[...ROS_PRINT_PATHS].map((m) => `/${m}`).join(', ')}.`);
     const words: string[] = [];
-    let inWhere = false; let sawWhere = false; let countOnly = false; let sawDetail = false;
+    let inWhere = false; let sawWhere = false; let countOnly = false;
     let tail: number | undefined;
     for (const t of rest) {
       if (!inWhere) {
         if (t === 'where') { inWhere = true; sawWhere = true; continue; }
-        if (PRINT_FLAGS.has(t)) { if (t === 'count-only') countOnly = true; if (t === 'detail') sawDetail = true; if (t === 'count-only' || t === 'stats') words.push(`=${t}=`); continue; }
+        if (PRINT_FLAGS.has(t)) { if (t === 'count-only') countOnly = true; if (t === 'count-only' || t === 'stats') words.push(`=${t}=`); continue; }
         const pair = kv(t);
         if (pair && pair[0] === 'tail') {
           if (joined !== 'log') deny('tail= is only for /log print.');
@@ -240,7 +240,7 @@ export function planRosCommand(text: unknown): RosPlan {
     if (joined === 'log' && tail === undefined) tail = 60;
     if (safe) {
       if (!words.some((w) => w.startsWith('=.proplist='))) words.push(`=.proplist=${safe.columns}`);
-      if (sawDetail) deny('detail is refused on secret-bearing menus.');
+      // `detail` is harmless here: the forced =.proplist= still limits the columns the router returns.
     }
     return { kind: 'api', verb: 'print', path, apiPath, words, display: tail !== undefined && joined === 'log' && !rest.some((t) => t.startsWith('tail=')) ? `${display} tail=${tail}` : display, ...(tail !== undefined ? { tail } : {}) };
   }

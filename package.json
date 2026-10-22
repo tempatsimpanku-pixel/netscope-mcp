@@ -2,20 +2,48 @@
   "name": "netscope-mcp",
   "version": "0.1.0",
   "description": "Read-only MCP server for ISP/NOC operators: look at your network (MikroTik RouterOS first) without handing the model any write access.",
-  "keywords": ["mcp", "model-context-protocol", "routeros", "mikrotik", "isp", "noc", "read-only", "network"],
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "routeros",
+    "mikrotik",
+    "isp",
+    "noc",
+    "read-only",
+    "network"
+  ],
   "license": "Apache-2.0",
   "type": "module",
-  "engines": { "node": ">=24" },
+  "engines": {
+    "node": ">=24"
+  },
   "main": "./dist/core/index.js",
   "types": "./dist/core/index.d.ts",
   "exports": {
-    ".": { "types": "./dist/core/index.d.ts", "default": "./dist/core/index.js" },
-    "./core": { "types": "./dist/core/index.d.ts", "default": "./dist/core/index.js" },
-    "./server": { "types": "./dist/server/index.d.ts", "default": "./dist/server/index.js" },
+    ".": {
+      "types": "./dist/core/index.d.ts",
+      "default": "./dist/core/index.js"
+    },
+    "./core": {
+      "types": "./dist/core/index.d.ts",
+      "default": "./dist/core/index.js"
+    },
+    "./server": {
+      "types": "./dist/server/index.d.ts",
+      "default": "./dist/server/index.js"
+    },
     "./package.json": "./package.json"
   },
-  "bin": { "netscope-mcp": "./dist/cli.js" },
-  "files": ["dist", "routers.example.yaml", "LICENSE", "NOTICE", "README.md"],
+  "bin": {
+    "netscope-mcp": "./dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "routers.example.yaml",
+    "LICENSE",
+    "NOTICE",
+    "README.md"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit -p tsconfig.json",
@@ -32,7 +60,9 @@
   "devDependencies": {
     "@eslint/js": "^10.0.0",
     "@types/node": "^24.0.0",
+    "@vitest/coverage-v8": "^5.0.5",
     "eslint": "^10.13.0",
+    "fast-check": "^4.10.2",
     "typescript": "~5.9.0",
     "typescript-eslint": "^8.72.0",
     "vitest": "^5.0.5"

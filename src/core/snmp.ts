@@ -18,6 +18,17 @@ export const SNMP_ALLOWED_PREFIXES: readonly string[] = [
   '1.3.6.1.4.1.14988.1.1',
 ];
 export const snmpAllowed = (oid: string): boolean => SNMP_ALLOWED_PREFIXES.some((p) => oid === p || oid.startsWith(`${p}.`));
+const OUTSIDE = 'OID is outside the readable subtrees (system, interfaces, hrProcessorLoad/hrStorage, IP/ARP, bridge MIB, sensors, UCD load/mem/cpu, vendor 14988.1.1).';
+const MAX_ARC = 4_294_967_295;
+
+/** Strict numeric-OID check (no surrounding whitespace, every arc <= 2^32-1, inside the readable subtrees). Returns the OID without a leading dot. */
+export function checkSnmpOid(oid: string): string {
+  if (!OID_RE.test(oid)) throw new PolicyDenied('oid must be numeric, e.g. 1.3.6.1.2.1.1.3.0.');
+  const clean = oid.replace(/^\./, '');
+  if (clean.split('.').some((a) => a.length > 10 || Number(a) > MAX_ARC)) throw new PolicyDenied('OID arc is out of range (max 4294967295).');
+  if (!snmpAllowed(clean)) throw new PolicyDenied(OUTSIDE);
+  return clean;
+}
 export const SNMP_MAX_ROWS = 500;
 const SNMP_WALK_MS = 10_000;
 
@@ -42,10 +53,9 @@ export function planSnmp(args: { name?: unknown; oid?: unknown; walk?: unknown; 
     if (!base) throw new PolicyDenied(`unknown SNMP name. Allowed: ${Object.keys(SNMP_NAMES).join(', ')} (or a numeric oid).`);
     oid = m![2] && !base.endsWith('.0') ? `${base}.${m![2]}` : base;
   } else {
-    if (!OID_RE.test(raw)) throw new PolicyDenied('oid must be numeric, e.g. 1.3.6.1.2.1.1.3.0.');
-    oid = raw.replace(/^\./, '');
+    oid = checkSnmpOid(raw);
   }
-  if (!snmpAllowed(oid)) throw new PolicyDenied('OID is outside the readable subtrees (system, interfaces, hrProcessorLoad/hrStorage, IP/ARP, bridge MIB, sensors, UCD load/mem/cpu, vendor 14988.1.1).');
+  if (!snmpAllowed(oid)) throw new PolicyDenied(OUTSIDE);
   const limit = int(args.limit, 1, SNMP_MAX_ROWS, 100, 'limit');
   const walk = args.walk === true || args.walk === 'true' || (!!name && !name.includes('.') && !oid.endsWith('.0'));
   return { oid, walk, limit };

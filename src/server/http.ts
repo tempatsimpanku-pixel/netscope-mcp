@@ -71,7 +71,12 @@ export async function startHttpServer(opts: HttpOptions): Promise<RunningHttp> {
     for (const n of isLoopbackHost(host) ? ['127.0.0.1', 'localhost', '[::1]'] : [host.toLowerCase()]) { accepted.add(n); accepted.add(`${n}:${boundPort}`); }
     return accepted.has(v);
   };
-  const originOk = (o: string | undefined): boolean => o === undefined || (opts.allowedOrigins ?? []).includes(o);
+  /** No Origin (non-browser client), an allowlisted Origin, or a same-origin one (http/https on an accepted Host). */
+  const originOk = (o: string | undefined): boolean => {
+    if (o === undefined) return true;
+    if ((opts.allowedOrigins ?? []).includes(o)) return true;
+    try { const u = new URL(o); return (u.protocol === 'http:' || u.protocol === 'https:') && u.origin === o && hostOk(u.host); } catch { return false; }
+  };
 
   const server = http.createServer(async (req, res) => {
     try {
