@@ -7,7 +7,6 @@
   "input": "string (or request object for httpGuard)",
   "expect": "allow = must be accepted; deny = must throw the deny error; either = either outcome acceptable but the invariants must hold",
   "check": "extra assertion name",
-  "refKnownGap": "true = the original implementation does NOT yet satisfy this case; it is a desired behaviour",
   "expectStatus": "httpGuard: expected HTTP status",
   "allowStatuses": "httpGuard: acceptable statuses"
  },

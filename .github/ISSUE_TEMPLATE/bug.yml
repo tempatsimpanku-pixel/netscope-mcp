@@ -1,0 +1,45 @@
+name: Bug report
+description: Something does not work as documented
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Never paste real router output, credentials, tokens, customer names, or public IPs.**
+        Use sanitized or synthetic data (192.0.2.0/24, 198.51.100.0/24, 203.0.113.0/24).
+        Security problems: use the private advisory link on the issue chooser instead.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened and what did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: Minimal steps; include the tool call (sanitized) and the config keys involved.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: netscope-mcp version
+    validations:
+      required: true
+  - type: input
+    id: node
+    attributes:
+      label: Node.js version and OS
+      placeholder: "24.x, Ubuntu 24.04"
+    validations:
+      required: true
+  - type: input
+    id: ros
+    attributes:
+      label: RouterOS version / device model (optional)
+  - type: textarea
+    id: logs
+    attributes:
+      label: Sanitized logs or error output
+      render: text

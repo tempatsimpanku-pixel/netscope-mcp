@@ -1,0 +1,23 @@
+name: Feature request
+description: Suggest an improvement
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        netscope-mcp is **read-only by design**. Requests that add write/config-changing capability will not be accepted.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / use case
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+  - type: textarea
+    id: security
+    attributes:
+      label: Read-only and data-exposure impact
+      description: Which RouterOS menus/commands or data fields would be exposed? Could it return secrets or customer data?

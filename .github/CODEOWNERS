@@ -1,0 +1,9 @@
+# Replace @OWNER with the GitHub user or team before the first push.
+*                          @OWNER
+/.github/                  @OWNER
+/src/core/allow.ts         @OWNER
+/src/core/redact.ts        @OWNER
+/src/server/http.ts        @OWNER
+/test/security/            @OWNER
+/docs/ROUTEROS-READONLY-USER.md @OWNER
+/SECURITY.md               @OWNER

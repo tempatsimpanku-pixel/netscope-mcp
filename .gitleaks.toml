@@ -1,0 +1,53 @@
+title = "netscope-mcp gitleaks config"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Generated or non-source files"
+paths = [
+  '''(^|/)package-lock\.json$''',
+  '''(^|/)node_modules/''',
+  '''(^|/)dist/''',
+  '''(^|/)coverage/''',
+]
+
+# Extra rule: flag any IPv4 literal that is not a documentation (RFC 5737),
+# loopback, unspecified, broadcast, link-local, or multicast address.
+# Purpose: stop real customer/ISP addresses leaking into fixtures, docs, code.
+# Dotted OIDs (1.3.6.1.2.1...), versions (7.16.1.2 only when 4 octets valid) and
+# longer dotted sequences are skipped by the boundary checks in the regex.
+[[rules]]
+id = "non-documentation-ipv4"
+description = "IPv4 address outside documentation/reserved ranges (use 192.0.2.0/24, 198.51.100.0/24, 203.0.113.0/24)"
+regex = '''(?:^|[^0-9A-Za-z.\-_])((?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])(?:\.(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])){3})(?:$|[^0-9A-Za-z\-_.]|\.(?:[^0-9]|$))'''
+secretGroup = 1
+keywords = ["."]
+tags = ["pii", "ip"]
+
+  # Reserved/documentation ranges are fine anywhere.
+  [[rules.allowlists]]
+  description = "Documentation, loopback, unspecified, broadcast, link-local, multicast"
+  regexTarget = "secret"
+  regexes = [
+    '''^192\.0\.2\.''',
+    '''^198\.51\.100\.''',
+    '''^203\.0\.113\.''',
+    '''^127\.''',
+    '''^0\.0\.0\.0$''',
+    '''^255\.255\.255\.255$''',
+    '''^169\.254\.''',
+    '''^2(?:2[4-9]|3[0-9])\.''',
+  ]
+
+  # Private (RFC 1918) addresses are allowed only in tests (SSRF/probe denial cases).
+  [[rules.allowlists]]
+  description = "RFC 1918 addresses in test files"
+  condition = "AND"
+  paths = ['''(^|/)(test|tests|__tests__)/''', '''\.test\.[cm]?[jt]s$''']
+  regexTarget = "secret"
+  regexes = [
+    '''^10\.''',
+    '''^192\.168\.''',
+    '''^172\.(?:1[6-9]|2[0-9]|3[01])\.''',
+  ]

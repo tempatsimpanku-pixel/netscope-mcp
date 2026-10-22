@@ -39,10 +39,14 @@
   },
   "files": [
     "dist",
+    "docs",
     "routers.example.yaml",
     "LICENSE",
     "NOTICE",
-    "README.md"
+    "README.md",
+    "README.id.md",
+    "SECURITY.md",
+    "CHANGELOG.md"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
@@ -50,7 +54,8 @@
     "lint": "eslint . && npm run typecheck",
     "test": "vitest run",
     "test:security": "vitest run test/security --passWithNoTests",
-    "start": "node dist/cli.js"
+    "start": "node dist/cli.js",
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.1",
