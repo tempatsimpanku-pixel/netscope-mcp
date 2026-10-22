@@ -62,7 +62,7 @@ mikrotik_read refused: word "reboot" is refused (read-only: only print / monitor
 
 > **Assistant:** I can't change the router: this server is read-only by design. I'd suggest cleaning and re-seating the SFP on `sfp-sfpplus2`, then I can re-check the receive level for you.
 
-**Closing card (10 s):** "Read-only by construction. Secrets redacted. Apache-2.0. github.com/OWNER/netscope-mcp"
+**Closing card (10 s):** "Read-only by construction. Secrets redacted. Apache-2.0. github.com/tempatsimpanku-pixel/netscope-mcp"
 
 ## Recording plan
 

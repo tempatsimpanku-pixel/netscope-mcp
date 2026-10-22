@@ -25,7 +25,7 @@ this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `engines.node` lowered to `>=20` for the shipped package (runtime dependencies support it); development tooling (vitest 5) needs Node >= 22. `node:sqlite` is loaded lazily, so only `--snapshot` needs Node >= 22.5 (clear error otherwise). CI tests on Node 22 and 24 and smoke-runs the built package on Node 20.
 
 ### Added
-- `repository`, `homepage`, `bugs`, `author`, `mcpName` in `package.json` (placeholder `OWNER`) and `server.json` for the official MCP registry.
+- `repository`, `homepage`, `bugs`, `author`, `mcpName` in `package.json` (GitHub user `tempatsimpanku-pixel`) and `server.json` for the official MCP registry.
 - Multi-stage, non-root `Dockerfile` (works with `--read-only --tmpfs /tmp`) and a CI job that builds it.
 - `CODE_OF_CONDUCT.md` (Contributor Covenant 2.1).
 - SECURITY.md "Known limitations" section.

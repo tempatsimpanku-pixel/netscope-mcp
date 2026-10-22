@@ -1,10 +1,10 @@
 # netscope-mcp
 
-[![CI](https://github.com/OWNER/netscope-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/OWNER/netscope-mcp/actions/workflows/ci.yml)
-[![Security](https://github.com/OWNER/netscope-mcp/actions/workflows/security.yml/badge.svg)](https://github.com/OWNER/netscope-mcp/actions/workflows/security.yml)
+[![CI](https://github.com/tempatsimpanku-pixel/netscope-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/tempatsimpanku-pixel/netscope-mcp/actions/workflows/ci.yml)
+[![Security](https://github.com/tempatsimpanku-pixel/netscope-mcp/actions/workflows/security.yml/badge.svg)](https://github.com/tempatsimpanku-pixel/netscope-mcp/actions/workflows/security.yml)
 [![npm](https://img.shields.io/npm/v/netscope-mcp.svg)](https://www.npmjs.com/package/netscope-mcp)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
-[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/OWNER/netscope-mcp/badge)](https://securityscorecards.dev/viewer/?uri=github.com/OWNER/netscope-mcp)
+[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/tempatsimpanku-pixel/netscope-mcp/badge)](https://securityscorecards.dev/viewer/?uri=github.com/tempatsimpanku-pixel/netscope-mcp)
 
 **Beri LLM "mata" ke jaringan ISP Anda tanpa memberinya "tangan".**
 

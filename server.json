@@ -1,13 +1,13 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
-  "name": "io.github.OWNER/netscope-mcp",
+  "name": "io.github.tempatsimpanku-pixel/netscope-mcp",
   "title": "netscope-mcp",
   "description": "Read-only MCP server for ISP/NOC operators to inspect MikroTik RouterOS networks.",
   "repository": {
-    "url": "https://github.com/OWNER/netscope-mcp",
+    "url": "https://github.com/tempatsimpanku-pixel/netscope-mcp",
     "source": "github"
   },
-  "websiteUrl": "https://github.com/OWNER/netscope-mcp#readme",
+  "websiteUrl": "https://github.com/tempatsimpanku-pixel/netscope-mcp#readme",
   "version": "0.1.0",
   "packages": [
     {

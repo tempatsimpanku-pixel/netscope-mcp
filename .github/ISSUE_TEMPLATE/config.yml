@@ -1,5 +1,5 @@
 blank_issues_enabled: false
 contact_links:
   - name: Report a security vulnerability (private)
-    url: https://github.com/OWNER/netscope-mcp/security/advisories/new
+    url: https://github.com/tempatsimpanku-pixel/netscope-mcp/security/advisories/new
     about: Do NOT open a public issue for vulnerabilities (allowlist bypass, secret leakage, SSRF). Use private vulnerability reporting; see SECURITY.md.

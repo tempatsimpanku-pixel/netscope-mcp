@@ -14,7 +14,7 @@ Only the latest released minor version receives security fixes while the project
 **Please do not open a public issue for security problems.**
 
 Report privately through GitHub: *Security → Report a vulnerability* (Private Vulnerability
-Reporting) on `<repository URL>`, or by email to `<security contact address>`. Please include:
+Reporting) on <https://github.com/tempatsimpanku-pixel/netscope-mcp>. Please include:
 
 - affected version / commit, RouterOS version if relevant;
 - a minimal input (tool call or request) that reproduces the problem;

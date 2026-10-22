@@ -16,13 +16,13 @@
   "author": "netscope-mcp contributors",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/OWNER/netscope-mcp.git"
+    "url": "git+https://github.com/tempatsimpanku-pixel/netscope-mcp.git"
   },
-  "homepage": "https://github.com/OWNER/netscope-mcp#readme",
+  "homepage": "https://github.com/tempatsimpanku-pixel/netscope-mcp#readme",
   "bugs": {
-    "url": "https://github.com/OWNER/netscope-mcp/issues"
+    "url": "https://github.com/tempatsimpanku-pixel/netscope-mcp/issues"
   },
-  "mcpName": "io.github.OWNER/netscope-mcp",
+  "mcpName": "io.github.tempatsimpanku-pixel/netscope-mcp",
   "type": "module",
   "engines": {
     "node": ">=20"
