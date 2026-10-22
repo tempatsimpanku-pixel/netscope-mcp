@@ -236,7 +236,7 @@ export class NetScope {
       const q = typeof args.filter === 'string' ? args.filter.trim().toLowerCase().slice(0, 60) : '';
       const group = typeof args.group === 'string' ? args.group.trim().toLowerCase() : '';
       const rows = all.filter((d) => (!q || `${d.id} ${d.name} ${d.host} ${d.family} ${d.group ?? ''}`.toLowerCase().includes(q)) && (!group || (d.group ?? '').toLowerCase() === group));
-      const lines = rows.slice(0, 120).map((d) => `id=${d.id} | ${d.name} | ${d.host}${portOf(d)} | ${d.family}${d.group ? ` | group ${d.group}` : ''} | tools: ${familyTools(d.family)}${d.family === 'routeros' || d.family === 'switch' ? ` | export over SSH: ${d.ssh?.port ? `port ${d.ssh.port}` : 'unavailable'}` : ''}`);
+      const lines = rows.slice(0, 120).map((d) => `id=${d.id} | ${d.name} | ${d.host}${portOf(d)} | ${d.family}${d.group ? ` | group ${d.group}` : ''} | ${this.m.toolsLabel}: ${familyTools(d.family)}${d.family === 'routeros' || d.family === 'switch' ? ` | ${this.m.exportOverSsh}: ${d.ssh?.port ? this.m.exportPort(d.ssh.port) : this.m.exportUnavailable}` : ''}`);
       return {
         text: `${this.m.deviceCount(rows.length, q)}\n${lines.join('\n')}${rows.length > 120 ? `\n${this.m.narrowFilter}` : ''}`, isError: false,
         data: rows.map((d) => ({ id: d.id, name: d.name, host: d.host, port: apiPortOf(d) ?? d.snmpPort ?? 161, family: d.family, group: d.group ?? null })),

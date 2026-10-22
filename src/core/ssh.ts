@@ -55,6 +55,23 @@ const normPin = (p: string) => (p.startsWith('SHA256:') ? p : `SHA256:${p}`).rep
 
 function defaultStateDir(): string { return path.join(os.tmpdir(), `netscope-ssh-${process.getuid?.() ?? 0}`); }
 
+/** Max length of the control directory: ControlPath = `<dir>/<40 hex %C>` and OpenSSH appends `.` + 16 random chars while binding;
+ * a unix socket path must stay under 108 bytes, so 108 - 1 - 40 - 17 - 1 (NUL) = 49. */
+export const MAX_CONTROL_DIR = 49;
+
+/** A short, private directory for the ControlMaster sockets (independent of how long `state_dir` is). */
+export function controlDirFor(stateDir: string): string {
+  const uid = process.getuid?.() ?? 0;
+  const tag = createHash('sha256').update(stateDir).digest('hex').slice(0, 8);
+  const candidates = [process.env.XDG_RUNTIME_DIR, '/tmp', os.tmpdir()].filter((b): b is string => !!b && path.isAbsolute(b));
+  for (const base of candidates) {
+    const dir = path.join(base, `nsc-${uid}-${tag}`);
+    if (dir.length > MAX_CONTROL_DIR) continue;
+    try { return ensureStateDir(dir); } catch { /* try the next base */ }
+  }
+  throw new Error(`no short private directory is available for SSH control sockets (needs a path of at most ${MAX_CONTROL_DIR} characters under XDG_RUNTIME_DIR or /tmp).`);
+}
+
 export function ensureStateDir(dir: string): string {
   fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
   const st = fs.lstatSync(dir);
@@ -90,7 +107,8 @@ export function createSshRunner(opts: SshOptions = {}): SshRunner {
   return async (t, remote, timeoutMs) => {
     let dir: string;
     try { dir = ensureStateDir(opts.stateDir ?? defaultStateDir()); } catch (e) { return { code: 255, stdout: '', stderr: (e as Error).message }; }
-    const ctl = path.join(dir, 'ctl'); fs.mkdirSync(ctl, { recursive: true, mode: 0o700 });
+    let ctl: string;
+    try { ctl = controlDirFor(dir); } catch (e) { return { code: 255, stdout: '', stderr: (e as Error).message }; }
     const env: NodeJS.ProcessEnv = { PATH: process.env.PATH || '/usr/bin:/bin', LANG: 'C.UTF-8' };
     let knownHosts = path.join(dir, 'known_hosts');
     let strict: 'yes' | 'accept-new' = 'accept-new';

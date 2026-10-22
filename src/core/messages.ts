@@ -29,6 +29,11 @@ export interface Messages {
   batchNeedsItems: string;
   batchTooMany(max: number, got: number): string;
   deviceCount(n: number, filter: string): string;
+  /** Per-device list_devices fragments. */
+  toolsLabel: string;
+  exportOverSsh: string;
+  exportPort(port: number): string;
+  exportUnavailable: string;
   narrowFilter: string;
   recipeNotFound(name: string, routers: number): string;
   recipeChecked(list: string): string;
@@ -57,6 +62,10 @@ const en: Messages = {
   batchSummary: (ok, bad, total, ms) => `[mikrotik_batch] ${ok} ok, ${bad} error(s) of ${total} items (${ms} ms, read-only)`,
   batchNeedsItems: '`items` must contain at least one {device, command}.',
   batchTooMany: (max, got) => `at most ${max} items per call (got ${got}).`,
+  toolsLabel: 'tools',
+  exportOverSsh: 'export over SSH',
+  exportPort: (port) => `port ${port}`,
+  exportUnavailable: 'unavailable',
   deviceCount: (n, filter) => `${n} device(s)${filter ? ` matching "${filter}"` : ''}:`,
   narrowFilter: '… (narrow with filter)',
   recipeNotFound: (name, routers) => `"${name}" not found on ${routers} router(s).`,
@@ -86,6 +95,10 @@ const id: Messages = {
   batchSummary: (ok, bad, total, ms) => `[mikrotik_batch] ${ok} ok, ${bad} galat dari ${total} item (${ms} ms, hanya baca)`,
   batchNeedsItems: '`items` harus berisi minimal satu {device, command}.',
   batchTooMany: (max, got) => `maksimal ${max} item per panggilan (diterima ${got}).`,
+  toolsLabel: 'alat',
+  exportOverSsh: 'export lewat SSH',
+  exportPort: (port) => `port ${port}`,
+  exportUnavailable: 'tidak tersedia',
   deviceCount: (n, filter) => `${n} perangkat${filter ? ` cocok dengan "${filter}"` : ''}:`,
   narrowFilter: '… (persempit dengan filter)',
   recipeNotFound: (name, routers) => `"${name}" tidak ditemukan di ${routers} router.`,

@@ -110,3 +110,17 @@ describe('createSshRunner', () => {
     expect(out.code).toBe(255); expect(out.stderr).toMatch(/not private/); expect(r.calls).toHaveLength(0);
   });
 });
+
+describe('long state_dir', () => {
+  it('keeps ControlPath short (< 108 bytes with the OpenSSH suffix) however long state_dir is', async () => {
+    const long = path.join(mkdir(), 'x'.repeat(90), 'y'.repeat(60));
+    fs.mkdirSync(long, { recursive: true, mode: 0o700 });
+    const r = recorder();
+    await createSshRunner({ stateDir: long, exec: r.exec })(base, '/ip service export hide-sensitive', 5000);
+    const cp = r.calls[0]!.args.find((a) => a.startsWith('ControlPath='))!.slice('ControlPath='.length);
+    expect(long.length).toBeGreaterThan(120);
+    expect(cp.replace('%C', 'a'.repeat(40)).length + 17).toBeLessThan(108);
+    expect(cp.startsWith(long)).toBe(false);
+    expect(fs.statSync(path.dirname(cp)).mode & 0o077).toBe(0);
+  });
+});

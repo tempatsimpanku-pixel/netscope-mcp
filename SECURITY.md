@@ -36,7 +36,7 @@ Do not include real credentials, real customer data or real router addresses in 
 In scope:
 
 - **Allowlist bypass** – any input that makes the tool send a RouterOS command other than
-  `print`, `monitor … once`, `export hide-sensitive`, `ping` or `traceroute`, or that reaches a
+  `print`, `monitor … once`, `/<menu> export hide-sensitive`, `ping` or `traceroute`, or that reaches a
   menu/column outside the positive list.
 - **Secret disclosure** – credentials, keys, pre-shared secrets, community strings or script bodies
   appearing in tool output, error messages, logs, process arguments or on disk with weak permissions.

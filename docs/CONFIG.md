@@ -87,7 +87,7 @@ routers:
 | `tls_ca_file` | no | PEM CA to verify the router certificate. |
 | `tls_fingerprint256` | no | SHA-256 fingerprint (32 hex bytes, colons optional) to pin a self-signed certificate. |
 | `credentials` | yes | Either `user_env` + `pass_env` (+ optional `community_env`) **or** `file` (mode 0600, lines `user=`, `password=`, `community=`). Never both. SNMP-only devices need `community_env`. |
-| `ssh` | no | Only used for `export hide-sensitive`: `port` (`null` = export unavailable), `key_file`, `host_key_sha256` (`SHA256:…`; without it the key is trust-on-first-use in `state_dir`). |
+| `ssh` | no | Only used for `/<menu> export hide-sensitive`: `port` (`null` = export unavailable), `key_file`, `host_key_sha256` (`SHA256:…`; without it the key is trust-on-first-use in `state_dir`). |
 | `snmp` | no | `port`, `community_env`. |
 | `fallback` | no | Alternate address tried **once, only when the direct address does not connect** (never after a rejected login). Shown in the output as its `label`. |
 
@@ -99,7 +99,7 @@ Relative file paths are resolved against the directory of the routers file. Envi
 |---|---|---|
 | `api-ssl` (recommended) | 8729 | TLS with certificate verification; CA file or fingerprint pin. |
 | `api` | 8728 | **No TLS.** Credentials travel in clear text. Only on an isolated management network, with `allow_insecure: true`. |
-| SSH | `ssh.port` | Only for `export hide-sensitive`; host key always checked (pinned, or trust-on-first-use). Any port works (`ssh.port` is never guessed). Prefer `key_file`. Without a key the router password is given to OpenSSH through `SSH_ASKPASS` (OpenSSH 8.4 or newer, no `sshpass` needed): see below. |
+| SSH | `ssh.port` | Only for `/<menu> export hide-sensitive`; host key always checked (pinned, or trust-on-first-use). Any port works (`ssh.port` is never guessed). Prefer `key_file`. Without a key the router password is given to OpenSSH through `SSH_ASKPASS` (OpenSSH 8.4 or newer, no `sshpass` needed): see below. |
 
 **SSH with a password.** The server writes a fixed helper (`askpass.sh`, mode 0700, no secret inside) to the SSH state directory and starts `ssh` with `SSH_ASKPASS` and `SSH_ASKPASS_REQUIRE=force`. The password is in the environment of that one child process only: not in the command line (`/proc/<pid>/cmdline`), not on disk, not in logs. The helper answers a *password* prompt and refuses every other prompt (host-key questions, passphrases), so the host-key check cannot be bypassed. If the OpenSSH client is older than 8.4 or missing, `export` returns a short explanation instead of a stack trace; use `key_file` there, or `print` per menu. The router user needs the `ssh` policy ([guide](ROUTEROS-READONLY-USER.md)).
 

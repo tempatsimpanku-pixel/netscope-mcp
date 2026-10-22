@@ -2,7 +2,7 @@
 
 ## Is it really read-only?
 
-The server only sends commands that match a deny-by-default allowlist (`print`, `monitor … once`, `export hide-sensitive`, `ping`, `traceroute`, on a positive list of menus). Write verbs, scripting, file operations, `/user`, certificates and the like are refused **before** credentials are even loaded or a device is contacted. That is one layer. **Also use a RouterOS account with a read-only policy** ([guide](ROUTEROS-READONLY-USER.md)), so a bug in any tool still cannot change a router. The regression corpus in `test/security/` (770 allowlist cases, 73 redaction cases, HTTP and property tests) runs in CI.
+The server only sends commands that match a deny-by-default allowlist (`print`, `monitor … once`, `/<menu> export hide-sensitive`, `ping`, `traceroute`, on a positive list of menus). Write verbs, scripting, file operations, `/user`, certificates and the like are refused **before** credentials are even loaded or a device is contacted. That is one layer. **Also use a RouterOS account with a read-only policy** ([guide](ROUTEROS-READONLY-USER.md)), so a bug in any tool still cannot change a router. The regression corpus in `test/security/` (770 allowlist cases, 73 redaction cases, HTTP and property tests) runs in CI.
 
 ## Can the model see passwords?
 

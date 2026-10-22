@@ -4,7 +4,7 @@ All notable changes to this project are documented here.
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.1.0] - Unreleased
+## [0.1.0] - 2026-10-22
 
 ### Added
 - Initial read-only MCP server for MikroTik RouterOS (stdio transport).
@@ -15,6 +15,9 @@ this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - CI, security scanning (gitleaks, CodeQL, dependency review, npm audit, Scorecard) and release workflow with npm provenance and CycloneDX SBOM.
 
 ### Fixed
+- SSH `export` no longer fails with `ControlPath too long` when `state_dir` is long: control sockets live in a short private directory (`$XDG_RUNTIME_DIR` or `/tmp`, `nsc-<uid>-<hash>`), with a clear error if none fits.
+- Docs and refusal messages show `export` with its full menu path (`/ip service export hide-sensitive`); a bare `export` is refused with that hint.
+- Locale `id` now also covers the `list_devices` fragments (`alat:`, `export lewat SSH: tidak tersedia`).
 - `mikrotik_recipe health` no longer fails as a whole on routers whose interface names contain spaces or `+` (e.g. `sfp+ 1`): SFPs are monitored by their router id (`*N`) or a quoted name, `monitor "sfp+ 1" once` is accepted by the allowlist, and every recipe step reports its own error line instead of cancelling the recipe.
 - Our own policy explanations ("refused (secrets, endless stream, …)", the list of allowed menus) are no longer run through the secret scrubber and stay readable; key=value pairs echoed from the caller and all router-originated text are still masked.
 - The plain-API warning names the configured port; `list_devices` shows the SNMP port for SwOS/SNMP-only devices instead of an API port.

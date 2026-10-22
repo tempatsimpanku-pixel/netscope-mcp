@@ -174,7 +174,7 @@ export function planRosCommand(text: unknown): RosPlan {
     for (let p = 0; p < parts.length; p++) {
       const w = parts[p]!;
       if (!WORD.test(w)) { if (hit >= 0 || tokens[i]!.includes('=')) break; return deny(`menu segment "${w}" is not valid.`); }
-      if (FORBIDDEN_WORDS.has(w)) deny(`word "${w}" is refused (read-only: only print / monitor once / export hide-sensitive / ping / traceroute).`);
+      if (FORBIDDEN_WORDS.has(w)) deny(`word "${w}" is refused (read-only: only print / monitor once / <menu> export hide-sensitive (full path, e.g. /ip service export hide-sensitive) / ping / traceroute).`);
       if (VERBS.has(w)) { verb = w; hit = p; break; }
       path.push(w);
     }
@@ -185,7 +185,7 @@ export function planRosCommand(text: unknown): RosPlan {
     }
     if (tokens[i]!.includes('=')) deny('the verb (print/monitor/ping/traceroute/export) must come before arguments.');
   }
-  if (!verb) return deny('unknown verb. Allowed: print, monitor ... once, export hide-sensitive, ping, traceroute.');
+  if (!verb) return deny('unknown verb. Allowed: print, monitor ... once, <menu> export hide-sensitive (e.g. /ip service export hide-sensitive), ping, traceroute.');
   const rest = tokens.slice(i);
   for (const t of rest) {
     const key = t.split('=')[0]!;
@@ -283,7 +283,7 @@ export function planRosCommand(text: unknown): RosPlan {
   }
 
   // export: full menu paths from the positive list only (no abbreviations, no action menus, no root); only "hide-sensitive" (+ terse/verbose/compact); no file=.
-  if (!ROS_EXPORT_PATHS.has(path.join(' '))) deny(`export /${path.join(' ')} is refused: only full menu paths on the positive list (${[...ROS_EXPORT_PATHS].map((p) => `/${p}`).join(', ')}).`);
+  if (!ROS_EXPORT_PATHS.has(path.join(' '))) deny(`export ${path.length ? `/${path.join(' ')}` : 'without a menu path'} is refused: give the full menu path before "export", e.g. "/ip service export hide-sensitive"; positive list (${[...ROS_EXPORT_PATHS].map((p) => `/${p}`).join(', ')}).`);
   const allowed = new Set(['hide-sensitive', 'terse', 'verbose', 'compact']);
   for (const t of rest) if (!allowed.has(t)) deny(`export argument "${t}" is not allowed (only hide-sensitive, terse, verbose, compact; never file=).`);
   if (!rest.includes('hide-sensitive')) deny('export must use hide-sensitive.');

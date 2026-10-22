@@ -16,3 +16,4 @@ routers.local.yaml
 .vscode/
 .idea/
 .DS_Store
+release/

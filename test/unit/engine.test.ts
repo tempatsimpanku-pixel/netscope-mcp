@@ -519,6 +519,11 @@ describe('policy text is not redacted; locale', () => {
     const r = await s.read({ device: 'rtr-core-1', command: '/system resource print' });
     expect(r.isError).toBe(true); expect(r.text).not.toMatch(/LAB-PASSWORD-ONE|LAB-COMMUNITY-ONE/);
   });
+  it('a bare export is refused with the full-path hint', async () => {
+    const s = mk({ transport: stub() });
+    const r = await s.read({ device: 'rtr-core-1', command: 'export hide-sensitive' });
+    expect(r.isError).toBe(true); expect(r.text).toContain('/ip service export hide-sensitive');
+  });
   it('locale en is the default and byte-identical in the frame', async () => {
     const s = mk({ transport: stub() });
     expect((await s.read({ device: 'rtr-core-1', command: '/system reboot' })).text).toMatch(/^mikrotik_read refused: /);
@@ -536,7 +541,9 @@ describe('policy text is not redacted; locale', () => {
     expect((await s.batch({ items: [] })).text).toMatch(/^mikrotik_batch ditolak: /);
     const rec = await s.recipe({ recipe: 'pppoe-lookup', name: 'nobody', device: 'rtr-core-1' });
     expect(rec.text).toMatch(/GALAT boom|diperiksa tanpa hasil/);
-    expect((await s.listDevices({})).text).toMatch(/^6 perangkat:/);
+    const ld = (await s.listDevices({})).text;
+    expect(ld).toMatch(/^6 perangkat:/); expect(ld).toMatch(/\| alat: /); expect(ld).toContain('export lewat SSH: tidak tersedia');
+    expect(ld).not.toMatch(/\| tools: |export over SSH|unavailable/);
     expect((await s.snapshot({})).text).toMatch(/tidak aktif/);
   });
   it('an injected dictionary overrides single sentences on top of the locale', async () => {

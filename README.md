@@ -12,7 +12,7 @@
 | | Typical MikroTik MCP | netscope-mcp |
 |---|---|---|
 | Goal | Manage a router through an LLM (often including writes) | Let an LLM **observe** a fleet safely |
-| Write protection | Optional read-only switch, or none | Read-only is the only mode: **deny-by-default** allowlist of `print`, `monitor … once`, `export hide-sensitive`, `ping`, `traceroute` |
+| Write protection | Optional read-only switch, or none | Read-only is the only mode: **deny-by-default** allowlist of `print`, `monitor … once`, `/<menu> export hide-sensitive`, `ping`, `traceroute` |
 | Secrets in output | Returned as the router sends them | Redacted by key name, by pattern and by the exact credential values the server knows; script bodies masked |
 | Tool design | Roughly one tool per RouterOS menu | Nine tools plus **diagnosis recipes** (`health`, `neighbors-map`, `pppoe-lookup`) |
 | Many routers | One device per call | **Batch** across routers in one call; one failing router does not fail the rest |
@@ -138,7 +138,7 @@ Sample output: [docs/RECIPES.md](docs/RECIPES.md).
 | Tool | Purpose |
 |---|---|
 | `list_devices` | List configured devices (`filter`, `group`); never credentials. |
-| `mikrotik_read` | One read-only command: `print` (with `where`/`proplist`/`count-only`), `monitor … once`, `export hide-sensitive` (SSH). |
+| `mikrotik_read` | One read-only command: `print` (with `where`/`proplist`/`count-only`), `monitor … once`, `/<menu> export hide-sensitive` (SSH; full menu path only, e.g. `/ip service export hide-sensitive`). |
 | `mikrotik_batch` | Up to 30 `{device, command}` items, fault-tolerant. |
 | `mikrotik_recipe` | `health`, `neighbors-map`, `pppoe-lookup`. |
 | `ping` / `traceroute` | From a router (or `local` when enabled) to a **literal** IP address. |

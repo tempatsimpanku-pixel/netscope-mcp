@@ -83,7 +83,7 @@ When nothing is found the answer says `"<name>" not found on N router(s)` and li
 A refused command:
 
 ```text
-mikrotik_read refused: word "reboot" is refused (read-only: only print / monitor once / export hide-sensitive / ping / traceroute).
+mikrotik_read refused: word "reboot" is refused (read-only: only print / monitor once / <menu> export hide-sensitive (full path, e.g. /ip service export hide-sensitive) / ping / traceroute).
 ```
 
 ## Writing good prompts

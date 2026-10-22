@@ -9,7 +9,7 @@
 
 ## Kenapa berbeda
 
-- **Read-only, deny-by-default:** hanya `print`, `monitor … once`, `export hide-sensitive`, `ping`, `traceroute` yang lolos; perintah tulis ditolak sebelum kredensial dimuat atau router dihubungi.
+- **Read-only, deny-by-default:** hanya `print`, `monitor … once`, `/<menu> export hide-sensitive`, `ping`, `traceroute` yang lolos; perintah tulis ditolak sebelum kredensial dimuat atau router dihubungi.
 - **Secret disamarkan** di setiap keluaran (nama kunci, pola, dan nilai kredensial yang dikenal); isi skrip disamarkan penuh.
 - **Resep diagnosis:** `health`, `neighbors-map`, `pppoe-lookup`.
 - **Batch multi-router** (maks 30 perintah) tahan galat: satu router gagal tidak menggagalkan yang lain.

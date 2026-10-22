@@ -1,7 +1,7 @@
 # Dedicated read-only RouterOS user for netscope-mcp
 
 **This is the primary safety control.** The tool's command allowlist is a second layer: it is
-written to refuse anything but `print`, `monitor … once`, `export hide-sensitive`, `ping` and
+written to refuse anything but `print`, `monitor … once`, `/<menu> export hide-sensitive`, `ping` and
 `traceroute`, but an allowlist is code and code has bugs. If the account the tool logs in with
 cannot write, a bug in the allowlist cannot change your router.
 
@@ -33,7 +33,7 @@ What each policy is for:
 | Policy | State | Why |
 |---|---|---|
 | `api` | granted | API login (`print`, `monitor`, `ping`, `traceroute`). Required when you use the API. |
-| `ssh` | granted | Only needed for `export hide-sensitive`. Remove it if you never use export. |
+| `ssh` | granted | Only needed for `/<menu> export hide-sensitive`. Remove it if you never use export. |
 | `read` | granted | Read configuration and status. Required. |
 | `test` | granted | Needed for `ping`/`traceroute` on some versions. **Not verified from documentation** – confirm in your lab and remove it if ping works without it. |
 | `sensitive` | **denied** | Without it, password/key columns are not readable and `export` hides them. This is the main defence against secret disclosure. |
