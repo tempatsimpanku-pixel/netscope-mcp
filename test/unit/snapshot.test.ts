@@ -120,13 +120,13 @@ describe('SnapshotWorker', () => {
     t += 600_001; expect((await w.runCycle()).ok).toBe(ROS_COUNT - 1); // the core router (×3 interval) is not due yet
   });
   it('core routers are polled less often (×3)', async () => {
-    let t = 1_000_000; const st = store();
+    const t = 1_000_000; const st = store();
     const w = mkWorker(st, { now: () => t });
     await w.runCycle();
     expect(st.get('rtr-core-1')!.nextDue - t).toBe(600_000 * 3); expect(st.get('rtr-edge-1')!.nextDue - t).toBe(600_000);
   });
   it('a restart (new worker, same file) does not re-collect what is not due', async () => {
-    const file = path.join(tmpdir(), 'w.sqlite'); let t = 5_000_000;
+    const file = path.join(tmpdir(), 'w.sqlite'); const t = 5_000_000;
     const s1 = new SnapshotStore(file); await mkWorker(s1, { now: () => t }).runCycle(); s1.close();
     const s2 = store(file); const calls: string[] = [];
     const r = await mkWorker(s2, { now: () => t + 1000, collect: async (d) => { calls.push(d.id); return data; } }).runCycle();
@@ -142,7 +142,7 @@ describe('SnapshotWorker', () => {
     expect(row.nextDue - row.attemptAt).toBe(600_000 * SNAPSHOT_FAIL_MULT_MAX);
   });
   it('a denied login waits at least 30 minutes and drops the cached credentials', async () => {
-    let t = 1_000_000; const st = store(); let dropped = 0;
+    const t = 1_000_000; const st = store(); let dropped = 0;
     const sc = scope(routerTransport(), { credentials: { credentials: async () => ({ user: 'u', secret: 'secret-x' }), drop: () => { dropped++; } } });
     const w = mkWorker(st, { now: () => t, sc, collect: async () => { throw new LoginDeniedError(); } });
     await w.runCycle();
@@ -159,7 +159,7 @@ describe('SnapshotWorker', () => {
     w.start(10_000_000, 10_000_000); w.stop(); w.stop();
   });
   it('prunes routers that left the inventory', async () => {
-    let t = 1; const st = store(); st.saveOk({ id: 'gone', alias: 'gone', family: 'routeros' }, data, 1, 2, 1);
+    const t = 1; const st = store(); st.saveOk({ id: 'gone', alias: 'gone', family: 'routeros' }, data, 1, 2, 1);
     await mkWorker(st, { now: () => t }).runCycle();
     expect(st.get('gone')).toBeNull();
   });
