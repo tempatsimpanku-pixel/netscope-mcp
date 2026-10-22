@@ -15,6 +15,12 @@ export interface Messages {
   ok: string;
   footer(ms: number, route: string): string;
   noRows: string;
+  /** A row whose every field was filtered by the read-only policy or returned empty. */
+  noFields: string;
+  /** Circuit breaker: the device did not connect earlier in the same call. */
+  unreachableSkipped(device: string): string;
+  /** `monitor <name>` answered `no such item`. */
+  noSuchItem(name: string): string;
   noHops: string;
   credentialsEmpty(tool: string): string;
   sshNotConfigured(tool: string, device: string): string;
@@ -50,6 +56,9 @@ const en: Messages = {
   ok: 'ok',
   footer: (ms, route) => `(${ms} ms, read-only${route})`,
   noRows: '(no rows)',
+  noFields: '(no fields returned: the read-only policy shows only safe columns for this menu)',
+  unreachableSkipped: (device) => `${device} did not connect earlier in this call; skipped without waiting for another connection attempt.`,
+  noSuchItem: (name) => `the device has no item named "${name}" (check the name, e.g. with /interface ethernet print); this is not a connection problem`,
   noHops: '(no hops)',
   credentialsEmpty: (tool) => `${tool} failed: device credentials are empty.`,
   sshNotConfigured: (tool, device) => `${tool}: SSH port of ${device} is not configured, export is unavailable (the port is never guessed). Use print per menu.`,
@@ -83,6 +92,9 @@ const id: Messages = {
   ok: 'ok',
   footer: (ms, route) => `(${ms} ms, hanya baca${route})`,
   noRows: '(tidak ada baris)',
+  noFields: '(tidak ada kolom: kebijakan hanya-baca hanya menampilkan kolom aman untuk menu ini)',
+  unreachableSkipped: (device) => `${device} tidak tersambung sebelumnya dalam panggilan ini; dilewati tanpa menunggu percobaan sambung lagi.`,
+  noSuchItem: (name) => `perangkat tidak punya item bernama "${name}" (periksa namanya, mis. dengan /interface ethernet print); bukan masalah koneksi`,
   noHops: '(tidak ada hop)',
   credentialsEmpty: (tool) => `${tool} gagal: kredensial perangkat kosong.`,
   sshNotConfigured: (tool, device) => `${tool}: port SSH ${device} belum dikonfigurasi, export tidak tersedia (port tidak pernah ditebak). Pakai print per menu.`,

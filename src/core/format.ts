@@ -6,7 +6,13 @@ export const MAX_ROWS = 300;
 const MAX_VALUE = 300;
 const SECRET_PATH = /(^|\/)(snmp\/community)$/;
 
-export interface FormatOptions { redactPii?: boolean; messages?: Pick<Messages, 'noRows' | 'noHops'> }
+export interface FormatOptions { redactPii?: boolean; redactPppNames?: boolean; messages?: Pick<Messages, 'noRows' | 'noHops' | 'noFields'> }
+
+/** Menus whose `name` column is a customer login (PPP user / PPPoE service name). */
+const PPP_NAME_MENU = /^\/(?:ppp\/(?:active|secret)|interface\/pppoe-server)\//;
+
+/** A name in a one-line summary: plain names stay bare, anything with spaces, dots, `;`, `=` or quotes is JSON-quoted so entries never run together. */
+export const quoteName = (name: string): string => (/^[A-Za-z_][A-Za-z0-9_+-]*$/.test(name) ? name : JSON.stringify(name));
 
 /** Menus whose rows describe customers (names, hosts, devices): with `redactPii` free-text columns there are masked too. */
 export const CUSTOMER_MENU = /^\/(?:ppp\/(?:active|secret)|ip\/dhcp-server\/lease|ip\/hotspot|ip\/arp|queue\/simple|interface\/pppoe-server|interface\/(?:wireless|wifi)\/registration-table|log)\//;
@@ -22,6 +28,7 @@ export function maskRows(rows: RosRow[], apiPath: string, opts: FormatOptions = 
       // SFP EEPROM dumps (hundreds of hex bytes) are useless to a model: reduce to a size.
       if (/^eeprom/i.test(k) && v.length > 40) { out[k] = `(${Math.floor(v.length / 2)} bytes dropped)`; continue; }
       let val = secret && v !== '' ? MASK : maskInlineSecrets(v);
+      if (val !== MASK && val !== '' && opts.redactPii && opts.redactPppNames && k === 'name' && PPP_NAME_MENU.test(apiPath)) val = MASK;
       if (val !== MASK && opts.redactPii) val = customer ? maskPiiCell(k, val) : maskMac(val);
       if (val !== MASK && val.length > MAX_VALUE) val = `${val.slice(0, MAX_VALUE)}…(${val.length - MAX_VALUE} characters truncated)`;
       out[k] = val;
@@ -33,7 +40,7 @@ export function maskRows(rows: RosRow[], apiPath: string, opts: FormatOptions = 
 export function formatRosRows(rows: RosRow[], apiPath: string, truncated: boolean, scanned?: number, tail?: number, opts: FormatOptions = {}): string {
   if (!rows.length) return opts.messages?.noRows ?? '(no rows)';
   const masked = maskRows(rows, apiPath, opts);
-  const lines = masked.map((row, i) => `${i} ${Object.entries(row).map(([k, val]) => `${k}=${val === MASK ? val : /[\s"]/.test(val) ? JSON.stringify(val) : val}`).join(' ')}`);
+  const lines = masked.map((row, i) => (!Object.keys(row).length ? `${i} ${opts.messages?.noFields ?? '(no fields returned)'}` : `${i} ${Object.entries(row).map(([k, val]) => `${k}=${val === MASK ? val : /[\s"]/.test(val) ? JSON.stringify(val) : val}`).join(' ')}`));
   const note = tail && scanned !== undefined && scanned > rows.length
     ? `\n… (showing the ${rows.length} NEWEST of ${scanned}${truncated ? '+ read' : ''} entries; order old → new)`
     : truncated ? `\n… (limited to ${MAX_ROWS} rows / time)` : '';

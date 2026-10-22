@@ -181,10 +181,29 @@ Sample output: [docs/RECIPES.md](docs/RECIPES.md).
 
 Each response is concise text plus `structuredContent`; failures are real errors (`isError: true`) with a cause: `policy`, `auth`, `timeout`, `connect`, `not-found`, `device`, `busy`, `config`.
 
+## Tested on
+
+Tested read-only against real devices on 2026-10-22 (RouterOS API with the bundled SSH runner; SNMP v2c where reachable). A check mark means every tool listed worked and no parsing problem was seen.
+
+| Device (family) | RouterOS / SwOS | API tools, recipes | `export` via SSH | SNMP |
+|---|---|---|---|---|
+| hEX RB750Gr3 (mmips) | 6.48.6 (long-term) | yes | not yet tested | not reachable in the test network |
+| RB450Gx4 (arm) | 7.12.1 (stable) | yes | not yet tested | not reachable in the test network |
+| hEX RB750Gr3 (mmips) | 7.24.4 (stable) | yes | not yet tested | yes |
+| x86 (bare metal) | 7.23.8 (long-term) | yes (no `/system routerboard`, `/system health` reports only `state=disabled`) | yes | yes |
+| CRS310-1G-5S-4S+ (arm) | 7.23.5 (long-term) | yes (`switch_read`, SFP health) | yes | yes |
+| CRS326-24S+2Q+ (mipsbe) | 7.23.5 and 7.23.8 (long-term) | yes (`switch_read`, SFP, PSU/fan health) | yes | yes |
+| CSS326-24G-2S+ | SwOS 2.16 | n/a (SNMP only) | n/a | yes (`switch_read` sysinfo, interfaces) |
+
+- **RouterOS 6.x:** API tools work (flat `/system health`, `oct/22/2026` dates are returned as the router writes them). **`export` over SSH on v6 and RouterOS 6.49.x are not yet tested** (no such device with SSH access was available); treat them as unverified.
+- SNMP and SSH need network reachability from the MCP host: a NAT port-forward that only exposes the API port will make SNMP/SSH time out. These failures are reported cleanly and do not affect the API tools.
+- Redaction and the allowlist behave identically on v6 and v7 in the tests above; regression fixtures for both shapes are in `test/unit/compat.test.ts`.
+
 ## Security at a glance
 
 - Read-only by construction: anything not on the allowlist is refused with a `policy` error before a device is contacted.
 - Secrets are redacted before they reach the model.
+- `redact_pii` (on by default) masks the device half of customer MAC addresses and free-text columns. **PPP login names are not masked by default** (`pppoe-lookup` needs them); set `redact_ppp_names: true` to mask them too. See [docs/CONFIG.md](docs/CONFIG.md).
 - HTTP mode refuses to start without a token of at least 32 characters, binds to loopback by default, validates `Host` and `Origin`, accepts `POST /mcp` only and sends no CORS headers.
 - Plain API (port 8728) and unverified TLS work only with `settings.allow_insecure: true`.
 - **Limits, stated honestly:** the guard is a tool-level layer, not a sandbox. Always use a RouterOS account whose policy is read-only.

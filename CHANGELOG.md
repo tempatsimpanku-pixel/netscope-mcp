@@ -6,7 +6,20 @@ this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+- `/snmp community print` returned empty rows: it now shows the access scope (`addresses`, `security`, `read-access`, `write-access`, `disabled`) and never the community or the passwords; a row with no visible fields says so.
+- `mikrotik_batch` shows the device name (or the reference as given) for refused items instead of `?`.
+- ARP summaries (recipe `neighbors-map`, snapshot) separate entries with `;` and quote interface names with spaces/dots, so `1. ether1` no longer reads like a list number.
+- `monitor <name>` answering `no such item` now names the interface and says it is not a connection problem.
+
+### Added
+- Per-call circuit breaker: after a device fails to connect, the remaining items/sections for that device in the same batch or recipe fail immediately instead of waiting for the connect timeout again.
+- `redact_ppp_names` setting (default `false`, requires `redact_pii`) to mask PPP login names; the default and its reason are documented in README and `docs/CONFIG.md`.
+- "Tested on" compatibility matrix (README, README.id); RouterOS v6 `export` over SSH and 6.49.x are marked not yet tested.
+- Regression fixtures for RouterOS v6 and v7 answer shapes, x86 without `/system routerboard`, and switches without PoE (`test/unit/compat.test.ts`).
+
 ### Changed
+- The corpus-hygiene test no longer spells the forbidden internal names: it compares SHA-256 digests and can read extra words from `NETSCOPE_BANNED_FILE` (outside the repository); it also scans README, docs and the example config.
 - `engines.node` lowered to `>=20` for the shipped package (runtime dependencies support it); development tooling (vitest 5) needs Node >= 22. `node:sqlite` is loaded lazily, so only `--snapshot` needs Node >= 22.5 (clear error otherwise). CI tests on Node 22 and 24 and smoke-runs the built package on Node 20.
 
 ### Added

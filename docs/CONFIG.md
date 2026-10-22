@@ -25,6 +25,7 @@ The file has three top-level keys: `settings`, `defaults`, `routers` (unknown ke
 ```yaml
 settings:
   redact_pii: true
+  redact_ppp_names: false               # true also masks PPP login names (see table above)
   allow_insecure: false
   allow_local_probe: false
   max_inflight: 10
@@ -57,7 +58,8 @@ routers:
 
 | Key | Default | Description |
 |---|---|---|
-| `redact_pii` | `true` | Mask the device part of customer MAC addresses and free-text customer columns (`comment`, `host-name`, `username`…); `/log` is refused while on. |
+| `redact_pii` | `true` | Mask the device part of customer MAC addresses and free-text customer columns (`comment`, `host-name`, `username`…); `/log` is refused while on. **PPP login names (`name` in `/ppp active`, `/ppp secret`) are not masked by this alone**, see `redact_ppp_names`. |
+| `redact_ppp_names` | `false` | Only with `redact_pii: true`: also mask the `name` column (the customer login) in `/ppp active`, `/ppp secret` and PPPoE-server rows. **Off by default on purpose:** PPP login names are *not* masked unless you turn this on, because `pppoe-lookup` and everyday troubleshooting need them. With it on, names show as `[redacted]` (and `pppoe-lookup` output hides them too; searching by name still works because the name is sent to the router, not read back). Addresses are never masked by this option. Snapshot files hold names only when `snapshot.store_customer_data` is on. |
 | `allow_insecure` | `false` | Needed for plain API (8728) and for `verify_tls: false` without a pinned fingerprint. A warning is logged per such router. |
 | `allow_local_probe` | `false` | Allow `ping`/`traceroute` with `from: "local"` (the MCP host itself). |
 | `max_inflight` | `10` | Concurrent device commands (1-50). |

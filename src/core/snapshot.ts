@@ -6,6 +6,7 @@ import { planRosCommand } from './allow.js';
 import { resolveDevice } from './devices.js';
 import { PolicyDenied, DeviceNotFound, LoginDeniedError } from './errors.js';
 import type { NetScope } from './engine.js';
+import { quoteName } from './format.js';
 import { clip, maskInlineSecrets, scrubExact, scrubMessage } from './redact.js';
 import type { DeviceCredentials, DeviceInfo, NetResult, RosApiPlan, RosRow } from './types.js';
 
@@ -417,7 +418,7 @@ export async function snapshotTool(scope: NetScope, store: SnapshotStore, args: 
       if (section === 'summary' || section === 'arp') {
         const a = d.arp;
         if (a) {
-          lines.push(`arp: ${a.total}${a.truncated ? '+' : ''} entries, ${a.failed} failed; per interface: ${Object.entries(a.perIf).sort((x, y) => y[1].t - x[1].t).slice(0, section === 'arp' ? 40 : 8).map(([i, v]) => `${i}=${v.t}${v.f ? `(${v.f} failed)` : ''}`).join(' ') || '-'}`);
+          lines.push(`arp: ${a.total}${a.truncated ? '+' : ''} entries, ${a.failed} failed; per interface: ${Object.entries(a.perIf).sort((x, y) => y[1].t - x[1].t).slice(0, section === 'arp' ? 40 : 8).map(([i, v]) => `${quoteName(i)}=${v.t}${v.f ? `(${v.f} failed)` : ''}`).join('; ') || '-'}`);
           lines.push(`  gateway: ${a.gateway.length ? a.gateway.map((g) => `${g.a}${g.m ? ` ${g.m}` : ''} ${g.ok ? 'ok' : 'FAILED'}`).join('; ') : '(none / not covered)'}`);
           if (section === 'arp' && a.failedList.length) lines.push(`  failed: ${a.failedList.map((f) => `${f.a}@${f.i}`).join(' ')}`);
         } else lines.push(`arp: - ${d.skipped?.includes('arp') ? '(skipped: high CPU during that cycle)' : d.errors?.arp ? `(ERROR ${d.errors.arp})` : ''}`);

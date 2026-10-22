@@ -41,7 +41,7 @@ export function buildServer(config: ServerConfig, opts: BuildOptions): BuiltServ
   const scope = new NetScope({
     devices: new YamlSource(config.routers), credentials: new EnvFileCredentials(config.routers, opts.env),
     pool, ssh: createSshRunner({ stateDir: path.join(config.stateDir, 'ssh') }),
-    locale: s.locale, redactPii: s.redact_pii, allowInsecure: s.allow_insecure, allowLocalProbe: s.allow_local_probe, maxInflight: s.max_inflight,
+    locale: s.locale, redactPii: s.redact_pii, redactPppNames: s.redact_ppp_names, allowInsecure: s.allow_insecure, allowLocalProbe: s.allow_local_probe, maxInflight: s.max_inflight,
     probe: { allowCidrs: s.probe.allow_cidrs, denyCidrs: s.probe.deny_cidrs },
     ...(audit ? { audit } : {}), ...opts.scopeOverrides,
   });

@@ -43,6 +43,8 @@ const routerSchema = z.object({
 
 const settingsSchema = z.object({
   redact_pii: z.boolean().default(true),
+  /** With redact_pii: also mask PPP login names (off by default; pppoe-lookup searches by name). */
+  redact_ppp_names: z.boolean().default(false),
   allow_insecure: z.boolean().default(false),
   allow_local_probe: z.boolean().default(false),
   max_inflight: z.number().int().min(1).max(50).default(10),

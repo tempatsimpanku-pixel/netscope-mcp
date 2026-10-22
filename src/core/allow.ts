@@ -120,6 +120,8 @@ const SAFE_PROPLIST: Array<{ path: string[]; columns: string; forced: boolean }>
   { path: ['ppp', 'secret'], columns: 'name,service,profile,remote-address,disabled,comment,last-logged-out', forced: true },
   { path: ['user'], columns: 'name,group,last-logged-in,disabled', forced: true },
   { path: ['radius'], columns: 'address,service,disabled,comment', forced: true },
+  // The community string is the row's `name` and the passwords are secret columns: only the access scope is shown.
+  { path: ['snmp', 'community'], columns: 'addresses,security,read-access,write-access,disabled', forced: true },
   { path: ['snmp'], columns: 'enabled,contact,location,trap-version', forced: true },
 ];
 export const SECRET_COLUMN = /password|passwd|secret|psk|private|community|key|token|passphrase|credential|(^|[-_.])(pin|pwd|pw|pass|auth)($|[-_.])/i;

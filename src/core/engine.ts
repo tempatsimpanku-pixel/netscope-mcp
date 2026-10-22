@@ -2,7 +2,7 @@ import net from 'node:net';
 import { auditCommand, checkProbeTarget, planRosCommand } from './allow.js';
 import { resolveDevice, familyTools } from './devices.js';
 import { BusyError, ConnectError, DeviceNotFound, LoginDeniedError, PolicyDenied, errorKindOf, type ErrorKind } from './errors.js';
-import { formatRosRows, formatTraceroute, maskRows } from './format.js';
+import { formatRosRows, formatTraceroute, maskRows, quoteName } from './format.js';
 import { Gate, KeyedQueue } from './limits.js';
 import { RosPool } from './pool.js';
 import { MASK, clip, maskInlineSecrets, maskMac, redactText, scrubExact, scrubMessage, SECRET_KEY } from './redact.js';
@@ -36,6 +36,8 @@ export interface NetScopeOptions {
   local?: LocalRunner;
   /** Mask customer-identifying data (MAC tails, host names, comments on customer menus) and disable /log. Default true. */
   redactPii?: boolean;
+  /** With `redactPii`: also mask the `name` column (customer login) of /ppp active, /ppp secret and PPPoE servers. Default false: the name is what `pppoe-lookup` searches for. */
+  redactPppNames?: boolean;
   /** Allow `ping`/`traceroute` from the MCP host itself (`from: "local"`). Default false. */
   allowLocalProbe?: boolean;
   /** Allow devices configured with the plain-text API. Default false. */
@@ -161,20 +163,27 @@ export class NetScope {
   }
 
   /** Run one API sentence: queued per device, limited globally. Falls back once to `device.fallback` when the direct address does not connect. */
-  async runPlan(device: DeviceInfo, cred: DeviceCredentials, plan: RosApiPlan, timeoutMs: number): Promise<RosResult & { route: string }> {
+  async runPlan(device: DeviceInfo, cred: DeviceCredentials, plan: RosApiPlan, timeoutMs: number, breaker?: Breaker): Promise<RosResult & { route: string }> {
     const via = device.fallback;
     const connectMs = via ? 3_000 : 6_000;
+    // Circuit breaker (per batch/recipe call): once a device failed to connect, the rest of that call does not wait for it again.
+    const trip = (e: unknown): void => { if (e instanceof ConnectError && !(e instanceof SkippedError)) breaker?.add(device.id); };
     try {
-      const out = await this.perDevice.run(device.id, () => this.gate.run(() => this.transport(this.target(device, cred), plan, timeoutMs, connectMs)));
+      const out = await this.perDevice.run(device.id, () => this.gate.run(() => {
+        if (breaker?.has(device.id)) throw new SkippedError(this.m.unreachableSkipped(device.name));
+        return this.transport(this.target(device, cred), plan, timeoutMs, connectMs);
+      }));
       return { ...out, route: '' };
     } catch (e) {
-      if (!via || !(e instanceof ConnectError)) throw e;
-      const out = await this.perDevice.run(device.id, () => this.gate.run(() => this.transport(this.target(device, cred, via.host, via.port), plan, timeoutMs, 3_000)));
-      return { ...out, route: `via ${via.label}` };
+      if (!via || !(e instanceof ConnectError) || e instanceof SkippedError) { trip(e); throw e; }
+      try {
+        const out = await this.perDevice.run(device.id, () => this.gate.run(() => this.transport(this.target(device, cred, via.host, via.port), plan, timeoutMs, 3_000)));
+        return { ...out, route: `via ${via.label}` };
+      } catch (e2) { trip(e2); throw e2; }
     }
   }
 
-  private pii(): { redactPii: boolean } { return { redactPii: this.redactPii }; }
+  private pii(): { redactPii: boolean; redactPppNames: boolean } { return { redactPii: this.redactPii, redactPppNames: this.o.redactPppNames ?? false }; }
 
   private async audited(tool: string, device: string | undefined, command: string | undefined, fn: () => Promise<NetResult>): Promise<NetResult> {
     const t0 = this.now();
@@ -189,7 +198,7 @@ export class NetScope {
   }
 
   /** Execute a planned command on a device and format the (redacted) result. */
-  async exec(device: DeviceInfo, plan: RosPlan, tool: string): Promise<NetResult> {
+  async exec(device: DeviceInfo, plan: RosPlan, tool: string, breaker?: Breaker): Promise<NetResult> {
     const started = this.now();
     const head = `[${device.name}] ${plan.display}`;
     let cred: DeviceCredentials | undefined;
@@ -199,7 +208,7 @@ export class NetScope {
       let body: string; let route = ''; let data: unknown;
       if (plan.kind === 'api') {
         const timeout = plan.verb === 'ping' ? ROS_TIMEOUT.ping : plan.verb === 'traceroute' ? ROS_TIMEOUT.traceroute : ROS_TIMEOUT.other;
-        const out = await this.runPlan(device, cred, plan, timeout);
+        const out = await this.runPlan(device, cred, plan, timeout, breaker);
         body = plan.verb === 'traceroute' ? formatTraceroute(out.rows, this.m) : formatRosRows(out.rows, plan.apiPath, out.truncated, out.scanned, plan.tail, { ...this.pii(), messages: this.m });
         route = out.route ? `, ${out.route}` : '';
         data = { device: device.id, command: plan.display, truncated: out.truncated, rows: scrubRows(maskRows(out.rows, plan.apiPath, this.pii()), cred) };
@@ -221,7 +230,9 @@ export class NetScope {
     } catch (e) {
       const message = scrubExact(errText(e), secretsOf(cred));
       if (e instanceof LoginDeniedError) this.dropCredentials(device.id);
-      const hint = /no such command|bad command name|unknown command/i.test(message) ? this.m.missingCommandHint : '';
+      let hint = /no such command|bad command name|unknown command/i.test(message) ? this.m.missingCommandHint : '';
+      const missing = plan.kind === 'api' && plan.verb === 'monitor' ? plan.words.find((w) => w.startsWith('=numbers='))?.slice(9) : undefined;
+      if (missing && /no such item/i.test(message)) hint = ` (${this.m.noSuchItem(missing.slice(0, 60))})`;
       return fail(this.m.failedOn(tool, device.name, `${message}${hint}`), errorKindOf(e));
     }
   }
@@ -267,15 +278,20 @@ export class NetScope {
     const t0 = this.now();
     let devices: DeviceInfo[];
     try { devices = await this.devices(); } catch (e) { return fail(this.m.failed('mikrotik_batch', errText(e)), errorKindOf(e)); }
-    interface Prepared { index: number; device?: DeviceInfo; plan?: RosPlan; command: string; error?: string }
+    interface Prepared { index: number; device?: DeviceInfo; plan?: RosPlan; command: string; label: string; error?: string }
     const prepared: Prepared[] = (items as Array<{ device?: unknown; command?: unknown }>).map((raw, index) => {
       const command = typeof raw?.command === 'string' ? raw.command : '';
+      // Name the device even when the item is refused (an unknown reference is shown as given).
+      let known: DeviceInfo | undefined;
+      try { known = resolveDevice(devices, raw?.device, 'ros'); } catch { /* reported below */ }
+      const label = known?.name ?? (typeof raw?.device === 'string' && raw.device.trim() ? maskInlineSecrets(raw.device.trim().slice(0, 60)) : '?');
       try {
         const plan = planRosCommand(raw?.command);
         this.guardPlan(plan);
-        return { index, device: resolveDevice(devices, raw?.device, 'ros'), plan, command };
-      } catch (e) { return { index, command, error: e instanceof PolicyDenied || e instanceof DeviceNotFound ? this.m.refusedItem(errText(e)) : errText(e) }; }
+        return { index, device: resolveDevice(devices, raw?.device, 'ros'), plan, command, label };
+      } catch (e) { return { index, command, label, error: e instanceof PolicyDenied || e instanceof DeviceNotFound ? this.m.refusedItem(errText(e)) : errText(e) }; }
     });
+    const breaker: Breaker = new Set();
     // Parallel across routers; sequential on one router (one session per router; the per-device queue still applies underneath).
     const groups = new Map<string, Prepared[]>();
     for (const p of prepared) if (p.device) (groups.get(p.device.id) || groups.set(p.device.id, []).get(p.device.id)!).push(p);
@@ -284,7 +300,7 @@ export class NetScope {
       let denied: NetResult | undefined; // login denied: remaining items on this router do not try to log in again
       for (const p of list) {
         if (denied) { outcome.set(p.index, denied); continue; }
-        const r = await this.audited('mikrotik_batch', p.device!.id, auditCommand(p.plan!), () => this.exec(p.device!, p.plan!, 'mikrotik_batch'));
+        const r = await this.audited('mikrotik_batch', p.device!.id, auditCommand(p.plan!), () => this.exec(p.device!, p.plan!, 'mikrotik_batch', breaker));
         if (r.isError && r.errorKind === 'auth') denied = r;
         outcome.set(p.index, r);
       }
@@ -295,7 +311,7 @@ export class NetScope {
       const failed = p.error !== undefined || r?.isError;
       if (failed) bad++; else ok++;
       const body = p.error !== undefined ? `${this.m.error} ${p.error}` : r!.isError ? `${this.m.error} ${r!.text}` : r!.text;
-      return `### ${p.index + 1}. ${failed ? this.m.error : this.m.ok} — ${p.device ? p.device.name : '?'}: ${p.command.slice(0, 120)}\n${clip(body, ITEM_LIMIT)}`;
+      return `### ${p.index + 1}. ${failed ? this.m.error : this.m.ok} — ${p.label}: ${p.command.slice(0, 120)}\n${clip(body, ITEM_LIMIT)}`;
     });
     const text = `${this.m.batchSummary(ok, bad, prepared.length, this.now() - t0)}\n${clip(blocks.join('\n\n'), TOTAL_LIMIT)}`;
     return { text, isError: ok === 0, ...(ok === 0 ? { errorKind: 'device' as ErrorKind } : {}), action: `mikrotik_batch: ${prepared.length} items, ${groups.size} routers`, data: { ok, errors: bad, total: prepared.length } };
@@ -314,7 +330,7 @@ export class NetScope {
         if (refs.length > MAX_RECIPE_DEVICES) throw new PolicyDenied(`at most ${MAX_RECIPE_DEVICES} devices per recipe.`);
         const picked = () => refs.map((r) => resolveDevice(all, r, 'ros'));
         const finish = (body: string, action: string, data?: unknown): NetResult => ({ text: `[mikrotik_recipe] ${recipe}\n${clip(body, 30_000)}\n${this.m.footer(this.now() - t0, '')}`, isError: false, action, ...(data !== undefined ? { data } : {}) });
-        const ctx: RecipeCtx = { creds: new Map() };
+        const ctx: RecipeCtx = { creds: new Map(), breaker: new Set() };
         if (recipe === 'pppoe-lookup') {
           const name = typeof args.name === 'string' ? args.name.trim() : '';
           if (!PPPOE_NAME.test(name)) throw new PolicyDenied('customer name is required (letters/digits/._@-, max 64) in `name`.');
@@ -349,7 +365,7 @@ export class NetScope {
       if (!cred) { cred = await this.credentialsOf(device.id); ctx.creds.set(device.id, cred); }
       if (!cred.user || !cred.secret) throw new Error('device credentials are empty.');
       try {
-        const out = await this.runPlan(device, cred, plan, ROS_TIMEOUT.other);
+        const out = await this.runPlan(device, cred, plan, ROS_TIMEOUT.other, ctx.breaker);
         return { rows: maskRows(out.rows, plan.apiPath, this.pii()), truncated: out.truncated };
       } catch (e) {
         const message = scrubExact(errText(e), secretsOf(cred));
@@ -407,7 +423,7 @@ export class NetScope {
     const perIf = new Map<string, number>();
     for (const a of arp.rows) if (a.interface) perIf.set(a.interface, (perIf.get(a.interface) || 0) + 1);
     if (arp.error) out.push(`arp: ${this.m.error} ${arp.error}`);
-    else out.push(`arp: ${atLeast(arp.rows.length, arp.truncated)} entries; ${[...perIf].sort((a, b) => b[1] - a[1]).slice(0, 12).map(([i, c]) => `${i}=${c}`).join(' ') || '-'}`);
+    else out.push(`arp: ${atLeast(arp.rows.length, arp.truncated)} entries; ${[...perIf].sort((a, b) => b[1] - a[1]).slice(0, 12).map(([i, c]) => `${quoteName(i)}=${c}`).join('; ') || '-'}`);
     const downs = ifs.rows.filter((i) => i.running === 'false' && i.disabled !== 'true' && /ether|sfp|bond|vlan/.test(i.type || '')).map((i) => i.name);
     if (ifs.error) out.push(`interface: ${this.m.error} ${ifs.error}`);
     else out.push(`interface: ${atLeast(ifs.rows.length, ifs.truncated)} total${ifs.truncated ? ' (down list may be incomplete)' : ''}, down: ${downs.length ? downs.slice(0, 15).join(', ') : '-'}`);
@@ -565,7 +581,11 @@ export class NetScope {
 
 // ───────────── helpers ─────────────
 
-interface RecipeCtx { creds: Map<string, DeviceCredentials> }
+interface RecipeCtx { creds: Map<string, DeviceCredentials>; breaker: Breaker }
+/** Ids of devices that failed to connect during one batch/recipe call. */
+type Breaker = Set<string>;
+/** Thrown instead of a connection attempt when the breaker is open; never a fresh network failure. */
+class SkippedError extends ConnectError {}
 
 /** Selector for `monitor`: the router's `.id` when it looks like one, else the quoted name (double quotes are not valid inside names we accept). */
 const monitorRef = (row: RosRow): string => (/^\*[0-9A-Fa-f]{1,8}$/.test(row['.id'] ?? '') ? row['.id']! : `"${(row.name ?? '').replace(/"/g, '')}"`);

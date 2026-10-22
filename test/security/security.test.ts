@@ -9,6 +9,7 @@
 import { describe, expect, it } from 'vitest';
 import fc from 'fast-check';
 import fs from 'node:fs';
+import { createHash } from 'node:crypto';
 import http from 'node:http';
 import type { RosPlan } from '../../src/core/index.js';
 import { PolicyDenied as NetReadDenied, planRosCommand, checkProbeTarget, checkSnmpOid, redactText as redactNetOutput, scrubExact, scrubMessage as scrubError, MASK } from '../../src/core/index.js';
@@ -196,10 +197,46 @@ describe('group m – lab acceptance (read-only user), see ROUTEROS-READONLY-USE
 // ── corpus hygiene ────────────────────────────────────────────────────────────────────────────
 describe('corpus hygiene', () => {
   const text = [fs.readFileSync(new URL('./allowlist-cases.json', import.meta.url), 'utf8'), fs.readFileSync(new URL('./redaction-corpus.json', import.meta.url), 'utf8')];
+  const root = new URL('../../', import.meta.url);
+  const scanned = ['README.md', 'README.id.md', 'CHANGELOG.md', 'docs/CONFIG.md', 'docs/FAQ.md', 'docs/RECIPES.md', 'docs/SNAPSHOT.md', 'docs/DEMO.md', 'routers.example.yaml'].map((f) => fs.readFileSync(new URL(f, root), 'utf8'));
   it('contains no internal names', () => {
-    // Words are assembled so this file itself stays free of the strings it forbids.
-    const banned = [['mon', 'bil'], ['kuning', 'media'], ['exa', 'net'], ['satu', 'digi'], ['opti', 'gen'], ['x', 'terminal'], ['/ho', 'me/'], ['/var', '/www'], ['@g', 'mail']].map((p) => p.join(''));
-    for (const t of text) for (const w of banned) expect(t.toLowerCase(), w).not.toContain(w);
+    // Guard words are kept as `<length>:<sha256>` so this repository never spells out what it forbids.
+    // Extra plain words can be supplied outside the repo: NETSCOPE_BANNED_FILE=/path/to/words.txt (one per line).
+    const HASHES = new Set([
+      '6:3103104ad7fad6b9e14b82d9871c9950d4d0f3f7f43c3655a59dccc14e1d4cae',
+      '11:61fea00a856f64e9077297be86583bc98362b5f7aecdfedc3272db9a790e27d0',
+      '6:f8cfa0ccd18efdd7b2f0b001b15acf5cb57ebf1fd20992143a4f693784f28f2a',
+      '8:387b726ab224a833fe5b4cf9edb6adcee29557d1350f2b969088b6824a7dbe51',
+      '7:a7c317161c5096ae1df88de1761ca7805f2ec320f513e14309a5a6331aff4f24',
+      '9:aded073245c07c74091bd299c1e61e3a84fab9997c9cc3a231d095e8049a8c50',
+      '6:3b122b9d4638c4ddb162f8b7c7de993f1ed87faafb21796fcebe2540fe6d8f4d',
+      '8:a7d1f26a8218716e0dd2bd21f67933c52a1097393a36a3590c4b9831304b34d2',
+      '6:75572a1cc40372c193bc55e9634e06177ffb4358360aa1b79d41a62dfccb17b3',
+      '6:6673cd96bd04c2a8b7320ec64b4bed1b5dab5b4b9bbf9c9510d03ead43b0a900',
+      '7:c01f25f3698c1929eba09a1d6e18c7a22c09b988f88ca6f4455e5d3fa2a15d48',
+      '8:387d027d005a84eed7c8894a5e0e24a454360f519567af3e47821d85836b794a',
+      '8:2d0117aae0bdef9b3f37aece6e2f4a481ecfaa77b27d1ecff6d611d543a56bcb',
+      '7:582fdaf0fab5504ab6fa3c550872ae6ecece4d452c67f836f90f024cd7dae011',
+      '5:6d9bf7258c0e19a862ccac630ae2175b588ea134b648278029c3bacfc466ef33',
+      '8:a83a90a39dc0344406ddc4ef9b935acdcb60c070a8e7e44e95c08baec24476f1',
+      '9:d38bd06534f725d8fc55bdda9f9f4f1b8750d69c64133e2880d616decc671698',
+    ]);
+    const extra = process.env.NETSCOPE_BANNED_FILE && fs.existsSync(process.env.NETSCOPE_BANNED_FILE)
+      ? fs.readFileSync(process.env.NETSCOPE_BANNED_FILE, 'utf8').split('\n').map((l) => l.trim().toLowerCase()).filter((l) => l.length >= 3) : [];
+    const lengths = [...new Set([...HASHES].map((h) => Number(h.split(':')[0])))];
+    const digest = (w: string) => `${w.length}:${createHash('sha256').update(w).digest('hex')}`;
+    // First characters of the guarded words: skip every window that cannot start a match (keeps the scan fast).
+    const starts = new Set(['m', 'k', 'e', 's', 'o', 'x', '/', '@', 'c', 'v', 'h']);
+    const hits: string[] = [];
+    for (const t of [...text, ...scanned]) {
+      const lower = t.toLowerCase();
+      for (const w of extra) if (lower.includes(w)) hits.push('(word from NETSCOPE_BANNED_FILE)');
+      for (let i = 0; i < lower.length; i++) {
+        if (!starts.has(lower[i]!)) continue;
+        for (const L of lengths) if (HASHES.has(digest(lower.slice(i, i + L))) && lower.length >= i + L) hits.push(`hash match at offset ${i}`);
+      }
+    }
+    expect(hits).toEqual([]);
   });
   it('every dotted-quad outside SNMP OIDs is a documentation/private/special-purpose address', () => {
     const okQuad = /^(192\.0\.2|198\.51\.100|203\.0\.113|10|172\.16|198\.18|100\.64|127|0|224|239|240|255|169\.254|192\.000|192\.0\.2)\./;

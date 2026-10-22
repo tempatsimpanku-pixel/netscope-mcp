@@ -74,6 +74,24 @@ claude mcp add netscope \
 
 6. Coba tanya: *"Jalankan resep health di core-1, ada yang tidak wajar?"* atau *"Pelanggan alice@example.net tersambung di router mana?"*
 
+## Diuji pada
+
+Diuji hanya-baca pada perangkat nyata, 2026-10-22 (RouterOS API dengan runner SSH bawaan; SNMP v2c bila terjangkau).
+
+| Perangkat | RouterOS / SwOS | Alat API, resep | `export` via SSH | SNMP |
+|---|---|---|---|---|
+| hEX RB750Gr3 (mmips) | 6.48.6 (long-term) | ya | belum diuji | tidak terjangkau di jaringan uji |
+| RB450Gx4 (arm) | 7.12.1 (stable) | ya | belum diuji | tidak terjangkau di jaringan uji |
+| hEX RB750Gr3 (mmips) | 7.24.4 (stable) | ya | belum diuji | ya |
+| x86 (bare metal) | 7.23.8 (long-term) | ya (tanpa `/system routerboard`; `/system health` hanya `state=disabled`) | ya | ya |
+| CRS310-1G-5S-4S+ (arm) | 7.23.5 (long-term) | ya (`switch_read`, kesehatan SFP) | ya | ya |
+| CRS326-24S+2Q+ (mipsbe) | 7.23.5 dan 7.23.8 (long-term) | ya (`switch_read`, SFP, PSU/kipas) | ya | ya |
+| CSS326-24G-2S+ | SwOS 2.16 | n/a (hanya SNMP) | n/a | ya (`switch_read` sysinfo, interfaces) |
+
+- **RouterOS 6.x:** alat API berfungsi. **`export` lewat SSH di v6 dan RouterOS 6.49.x belum diuji** (belum ada perangkat dengan akses SSH); anggap belum terverifikasi.
+- SNMP dan SSH butuh keterjangkauan jaringan dari host MCP: port-forward NAT yang hanya meneruskan port API membuat SNMP/SSH timeout. Kegagalan ini dilaporkan bersih dan tidak memengaruhi alat API.
+- Fixture regresi format v6 dan v7 ada di `test/unit/compat.test.ts`.
+
 ## Keamanan singkat
 
 - Penjaga di sisi alat hanyalah satu lapisan, **bukan sandbox**. Selalu pakai akun RouterOS ber-policy read-only; itulah batas pertahanan sebenarnya.
@@ -81,6 +99,7 @@ claude mcp add netscope \
 - Mode HTTP menolak start tanpa token (`NETSCOPE_MCP_TOKEN`, minimal 32 karakter), terikat ke loopback, memvalidasi `Host`/`Origin`, hanya menerima `POST /mcp`.
 - Kredensial tidak pernah di YAML polos: hanya nama variabel lingkungan atau berkas mode 0600.
 - Data pelanggan yang tampil di keluaran dikirim ke penyedia model Anda: biarkan `redact_pii` aktif dan perhatikan UU PDP.
+- `redact_pii` (aktif bawaan) menyamarkan separuh perangkat dari MAC pelanggan dan kolom teks bebas. **Nama login PPP tidak disamarkan secara bawaan** (dibutuhkan `pppoe-lookup`); aktifkan `redact_ppp_names: true` untuk menyamarkannya juga. Lihat [docs/CONFIG.md](docs/CONFIG.md).
 
 Rincian: [SECURITY.md](SECURITY.md) (bahasa Inggris).
 
