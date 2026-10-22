@@ -1,0 +1,58 @@
+# netscope-mcp — example router inventory (synthetic data: RFC 5737 documentation addresses).
+#
+# Credentials are NEVER written here. Use environment variables (`*_env`) or a credentials
+# file (`file`) that is mode 0600 (lines: user=..., password=..., community=...).
+#
+#   export ROS_CORE1_USER=netscope-ro
+#   export ROS_CORE1_PASS='<long random password>'
+#   netscope-mcp --config routers.yaml
+
+settings:
+  redact_pii: true            # mask customer MAC tails / free text on customer menus, disable /log
+  allow_insecure: false       # must be true to use the plain-text API (8728) or skip TLS verification
+  allow_local_probe: false    # allow ping/traceroute from the MCP host itself (`from: "local"`)
+  max_inflight: 10            # concurrent device commands
+  probe:
+    deny_cidrs: []            # e.g. ["192.0.2.0/25"] — never probe your management network
+    allow_cidrs: []           # when non-empty, probes must fall inside these
+  snapshot:
+    interval_min: 10
+    store_customer_data: false   # keep PPP names/addresses/caller-ids in the snapshot file
+  audit_log: stderr           # stderr | off | /path/to/audit.jsonl (mode 0600)
+
+defaults:
+  transport: api-ssl          # api-ssl (TCP 8729) or api (TCP 8728, plain text)
+  verify_tls: true
+
+routers:
+  - id: rtr-core-1
+    host: 192.0.2.10
+    port: 8729
+    family: routeros          # routeros | switch (CRS) | swos (SNMP only) | snmp
+    group: backbone
+    labels: { role: core }    # role: core makes the snapshot worker poll it less often
+    tls_fingerprint256: "00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF"   # pin a self-signed certificate (or use tls_ca_file)
+    credentials: { user_env: ROS_CORE1_USER, pass_env: ROS_CORE1_PASS }
+    ssh: { port: 22, key_file: /etc/netscope-mcp/ssh/core-1.key, host_key_sha256: "SHA256:AbCdEfGhIjKlMnOpQrStUvWxYz0123456789ABCDEFG" }   # only needed for `export`
+    snmp: { community_env: SNMP_CORE1_COMMUNITY }
+
+  - id: rtr-edge-1
+    host: 192.0.2.11
+    family: routeros
+    group: edge
+    tls_ca_file: /etc/netscope-mcp/ca.pem
+    credentials: { file: /etc/netscope-mcp/edge-1.cred }
+    fallback: { host: 198.51.100.1, port: 28729, label: "management port-forward" }
+
+  - id: sw-crs-1
+    host: 198.51.100.21
+    family: switch
+    group: access
+    tls_ca_file: /etc/netscope-mcp/ca.pem
+    credentials: { user_env: ROS_SW1_USER, pass_env: ROS_SW1_PASS }
+
+  - id: sw-css-1
+    host: 198.51.100.22
+    family: swos               # SwOS: read over SNMP only
+    group: access
+    credentials: { community_env: SNMP_SW2_COMMUNITY }

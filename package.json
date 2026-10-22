@@ -1,0 +1,40 @@
+{
+  "name": "netscope-mcp",
+  "version": "0.1.0",
+  "description": "Read-only MCP server for ISP/NOC operators: look at your network (MikroTik RouterOS first) without handing the model any write access.",
+  "keywords": ["mcp", "model-context-protocol", "routeros", "mikrotik", "isp", "noc", "read-only", "network"],
+  "license": "Apache-2.0",
+  "type": "module",
+  "engines": { "node": ">=24" },
+  "main": "./dist/core/index.js",
+  "types": "./dist/core/index.d.ts",
+  "exports": {
+    ".": { "types": "./dist/core/index.d.ts", "default": "./dist/core/index.js" },
+    "./core": { "types": "./dist/core/index.d.ts", "default": "./dist/core/index.js" },
+    "./server": { "types": "./dist/server/index.d.ts", "default": "./dist/server/index.js" },
+    "./package.json": "./package.json"
+  },
+  "bin": { "netscope-mcp": "./dist/cli.js" },
+  "files": ["dist", "routers.example.yaml", "LICENSE", "NOTICE", "README.md"],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "lint": "eslint . && npm run typecheck",
+    "test": "vitest run",
+    "test:security": "vitest run test/security --passWithNoTests",
+    "start": "node dist/cli.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.1",
+    "yaml": "^2.9.1",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.0",
+    "@types/node": "^24.0.0",
+    "eslint": "^10.13.0",
+    "typescript": "~5.9.0",
+    "typescript-eslint": "^8.72.0",
+    "vitest": "^5.0.5"
+  }
+}
