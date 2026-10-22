@@ -10,6 +10,10 @@ updates:
       dev-dependencies:
         dependency-type: development
         update-types: [minor, patch]
+    ignore:
+      # @types/node must track the Node line we test against (22/24); majors are bumped by hand.
+      - dependency-name: '@types/node'
+        update-types: ['version-update:semver-major']
     labels: [dependencies]
   - package-ecosystem: github-actions
     directory: /

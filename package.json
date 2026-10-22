@@ -1,6 +1,6 @@
 {
   "name": "netscope-mcp",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Read-only MCP server for ISP/NOC operators: look at your network (MikroTik RouterOS first) without handing the model any write access.",
   "keywords": [
     "mcp",

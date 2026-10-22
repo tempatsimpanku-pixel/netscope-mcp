@@ -13,7 +13,7 @@
 > **Status:** v0.1. npm publication is pending; until then install from a release tarball or from source (see Quickstart).
 > Not affiliated with or endorsed by MikroTik. "MikroTik" and "RouterOS" are trademarks of their owners.
 
-<!-- demo: replace with the recorded GIF/asciinema once published, see docs/DEMO.md -->
+![netscope-mcp demo: asking an AI assistant about a router, a link and a customer, read-only](docs/demo.gif)
 
 ## The problem
 
@@ -28,7 +28,7 @@ An LLM can do that legwork, but handing a model a RouterOS login with write acce
 - **Deny-by-default allowlist.** Only `print`, `monitor … once`, `/<menu> export hide-sensitive`, `ping` and `traceroute` on a positive list of menus are ever sent. Anything else is refused *before* credentials are loaded or a device is contacted.
 - **Secrets never reach the model.** Output is redacted by key name, by pattern and by the exact credential values the server holds; script bodies are masked.
 - **A read-only router account is the real boundary.** The guard is one layer, not a sandbox. [We show you how to create the RouterOS user](docs/ROUTEROS-READONLY-USER.md) so that even a bug in this project cannot change a router.
-- **Auditable.** 1,270+ automated tests including a security corpus (770 allowlist cases, 73 redaction cases, HTTP and property tests) run in CI, plus gitleaks, CodeQL, dependency review and OpenSSF Scorecard.
+- **Auditable.** 1,290+ automated tests including a security corpus (770 allowlist cases, 73 redaction cases, HTTP and property tests) run in CI, plus gitleaks, CodeQL, dependency review and OpenSSF Scorecard.
 
 ## Why it is different
 
@@ -65,7 +65,7 @@ A full worked example is in [docs/DEMO.md](docs/DEMO.md). The detailed steps fol
 
 ## Quickstart
 
-Requires Node.js 24 or newer.
+Requires Node.js 20 or newer (`--snapshot` needs Node.js 22.5 or newer for `node:sqlite`).
 
 ### 1. Create a read-only RouterOS user
 

@@ -52,7 +52,9 @@ jobs:
       - run: npx vitest run
       - run: npm run build
       - name: Pack tarball
-        run: npm pack --pack-destination dist-pack
+        run: |
+          mkdir -p dist-pack
+          npm pack --pack-destination dist-pack
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: tarball

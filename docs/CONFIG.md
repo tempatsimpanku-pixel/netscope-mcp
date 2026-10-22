@@ -16,7 +16,7 @@ netscope-mcp --config routers.yaml [options]
   -h, --help | -v, --version
 ```
 
-Node.js 24 or newer is required. Run `--check` after every edit: errors name the offending key, never its value.
+Node.js 20 or newer is required (22.5+ only for `--snapshot`). Run `--check` after every edit: errors name the offending key, never its value.
 
 ## `routers.yaml`
 

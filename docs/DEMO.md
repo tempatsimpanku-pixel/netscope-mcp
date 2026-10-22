@@ -73,7 +73,7 @@ mikrotik_read refused: word "reboot" is refused (read-only: only print / monitor
 | Client | Claude Code or Codex CLI, with netscope added as MCP server |
 | Backend | Real lab routers or the simulated RouterOS from the test suite; **never** real customer data or real IPs on screen. Re-run with documentation addresses if the lab differs |
 | Length | 60-90 s; cut waiting time with `asciinema rec --idle-time-limit 1` |
-| Output files | `docs/assets/demo.cast`, `docs/assets/demo.gif` (< 3 MB), embed the GIF at the `<!-- demo -->` marker in the README and upload the cast to asciinema.org for the link |
+| Output files | `docs/assets/demo.cast`, `docs/demo.gif` (< 3 MB), embed the GIF at the `<!-- demo -->` marker in the README and upload the cast to asciinema.org for the link |
 | Pre-flight | `netscope-mcp --config routers.yaml --check`; run once off-camera; check no hostname/IP/credential appears (gitleaks on the cast: `grep` for real prefixes) |
 
-Steps: 1) `asciinema rec demo.cast`; 2) run the three prompts above; 3) `agg --font-size 16 demo.cast demo.gif`; 4) review frame by frame for leaks; 5) commit under `docs/assets/`.
+Steps: 1) `asciinema rec demo.cast`; 2) run the three prompts above; 3) `agg --font-size 16 demo.cast demo.gif`; 4) review frame by frame for leaks; 5) commit the cast under `docs/assets/` and the GIF as `docs/demo.gif`.

@@ -10,6 +10,8 @@
 
 `netscope-mcp` adalah server [MCP](https://modelcontextprotocol.io) **read-only ketat** untuk operator ISP/WISP. Asisten AI dapat memeriksa banyak router dan switch MikroTik RouterOS (v6/v7) sekaligus lewat resep diagnosis satu panggilan. Dukungan VyOS dan GenieACS direncanakan di v0.2.
 
+![Demo netscope-mcp: bertanya ke asisten AI soal router, link, dan pelanggan, read-only](docs/demo.gif)
+
 > **Status:** v0.1; publikasi npm menyusul, sementara itu pasang dari tarball atau dari sumber. Demo 75 detik: [docs/DEMO.md](docs/DEMO.md) (bahasa Inggris).
 > Tidak berafiliasi dengan MikroTik. "MikroTik" dan "RouterOS" adalah merek dagang pemiliknya.
 
@@ -17,7 +19,7 @@
 
 Engineer NOC di ISP kecil menjawab pertanyaan yang sama sepanjang hari: *router ini sehat? kenapa level optik lemah? pelanggan X ada di router mana? apa yang tercolok di port ini?* Setiap jawaban berarti login ke beberapa router dan menjalankan beberapa perintah.
 
-LLM bisa mengerjakan itu, tetapi memberinya login RouterOS dengan hak tulis berbahaya: satu perintah halusinasi seperti `/system reset-configuration` bisa menjatuhkan pelanggan. Karena itu `netscope-mcp` membuat yang aman menjadi satu-satunya jalan: read-only, secret disamarkan, dan ada panduan membuat user RouterOS read-only sebagai batas pertahanan sebenarnya. Teruji lewat 1.270+ tes otomatis (termasuk korpus keamanan 770 kasus allowlist) dan CI keamanan (gitleaks, CodeQL, Scorecard).
+LLM bisa mengerjakan itu, tetapi memberinya login RouterOS dengan hak tulis berbahaya: satu perintah halusinasi seperti `/system reset-configuration` bisa menjatuhkan pelanggan. Karena itu `netscope-mcp` membuat yang aman menjadi satu-satunya jalan: read-only, secret disamarkan, dan ada panduan membuat user RouterOS read-only sebagai batas pertahanan sebenarnya. Teruji lewat 1.290+ tes otomatis (termasuk korpus keamanan 770 kasus allowlist) dan CI keamanan (gitleaks, CodeQL, Scorecard).
 
 ## Kenapa berbeda
 
@@ -29,7 +31,7 @@ LLM bisa mengerjakan itu, tetapi memberinya login RouterOS dengan hak tulis berb
 
 ## Mulai cepat
 
-Butuh Node.js 24+.
+Butuh Node.js 20+ (`--snapshot` butuh Node.js 22.5+ karena `node:sqlite`).
 
 1. Buat user RouterOS read-only: [docs/ROUTEROS-READONLY-USER.md](docs/ROUTEROS-READONLY-USER.md) (bahasa Inggris).
 2. Pasang (dari tarball hasil `npm ci && npm run build && npm pack`):

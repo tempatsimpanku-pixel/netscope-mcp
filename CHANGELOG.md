@@ -6,6 +6,16 @@ this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-10-22
+
+### Fixed
+- Release workflow: `npm pack --pack-destination dist-pack` failed (ENOENT) because the directory did not exist; it is now created first.
+- Documentation consistency: Node.js requirement is `>=20` everywhere (`--snapshot` needs 22.5+), test count wording, and VyOS is listed only as roadmap (v0.2), not as a supported device.
+- README embeds the demo recording (`docs/demo.gif`).
+
+### Changed
+- Dependabot no longer proposes major `@types/node` bumps (types must match the tested Node line; 26 breaks the typecheck).
+
 ### Fixed
 - `server.json` violated the official MCP registry schema (`description` was 128 characters, the limit is 100). It is now shortened, and `npm run check:server-json` (vendored schema `scripts/server.schema.2025-12-11.json`, Ajv) validates it and checks name/version agree with `package.json`; it runs in CI and in the release workflow.
 - `routers.example.yaml` and the README quickstart YAML now pass `netscope-mcp --check` exactly as written (only the documented environment variables are needed): options that point to files on disk (`tls_ca_file`, `ssh.key_file`, `credentials.file`) are shown as commented-out alternatives. A regression test (`test/unit/docs-config.test.ts`) keeps them runnable.
