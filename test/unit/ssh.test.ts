@@ -1,0 +1,96 @@
+import { execFileSync } from 'node:child_process';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { afterEach, describe, expect, it } from 'vitest';
+import { buildSshArgs, createSshRunner, sshKeyFingerprint, type SshOutcome, type SshTarget } from '../../src/core/index.js';
+
+const dirs: string[] = [];
+const mkdir = (mode = 0o700) => { const d = fs.mkdtempSync(path.join(os.tmpdir(), 'netscope-ssht-')); fs.chmodSync(d, mode); dirs.push(d); return d; };
+afterEach(() => { dirs.splice(0).forEach((d) => fs.rmSync(d, { recursive: true, force: true })); });
+
+const base: SshTarget = { host: '192.0.2.10', port: 2222, user: 'ro-user', deviceId: 'rtr-core-1', password: 'LAB-PASSWORD-ONE' };
+type Call = { file: string; args: string[]; env: NodeJS.ProcessEnv };
+const recorder = (answers: Array<Partial<SshOutcome>> = []) => {
+  const calls: Call[] = [];
+  const exec = async (file: string, args: string[], env: NodeJS.ProcessEnv): Promise<SshOutcome> => { calls.push({ file, args, env: { ...env } }); return { code: 0, stdout: '', stderr: '', ...(answers.shift() ?? {}) }; };
+  return { calls, exec };
+};
+
+describe('buildSshArgs (pure)', () => {
+  const args = buildSshArgs(base, '/ip address export hide-sensitive', { knownHosts: '/state/known_hosts', strict: 'accept-new', controlDir: '/state/ctl', persistSeconds: 45, connectTimeoutS: 6 });
+  it('never disables host key checking or points known_hosts at /dev/null', () => {
+    const joined = args.join(' ');
+    expect(joined).not.toMatch(/StrictHostKeyChecking=no/i); expect(joined).not.toContain('/dev/null'); expect(joined).toContain('StrictHostKeyChecking=accept-new');
+    expect(joined).toContain('UserKnownHostsFile=/state/known_hosts');
+  });
+  it('keeps the password out of argv; remote command is the last argument', () => {
+    expect(args.join(' ')).not.toContain('LAB-PASSWORD-ONE'); expect(args.at(-1)).toBe('/ip address export hide-sensitive'); expect(args.at(-2)).toBe('ro-user@192.0.2.10');
+    expect(args).toContain('PubkeyAuthentication=no');
+  });
+  it('key mode: identity file, no password prompts', () => {
+    const a = buildSshArgs({ ...base, keyFile: '/keys/k' }, 'x', { knownHosts: 'k', strict: 'yes', controlDir: 'c', persistSeconds: 1, connectTimeoutS: 1 });
+    expect(a).toContain('-i'); expect(a).toContain('/keys/k'); expect(a).toContain('PasswordAuthentication=no'); expect(a).toContain('IdentitiesOnly=yes'); expect(a).toContain('StrictHostKeyChecking=yes');
+  });
+});
+
+describe('sshKeyFingerprint', () => {
+  it('matches ssh-keygen for a real key', () => {
+    const d = mkdir(); const key = path.join(d, 'k');
+    execFileSync('ssh-keygen', ['-q', '-t', 'ed25519', '-N', '', '-f', key], { stdio: 'ignore' });
+    const pub = fs.readFileSync(`${key}.pub`, 'utf8').trim();
+    const expected = execFileSync('ssh-keygen', ['-lf', `${key}.pub`], { encoding: 'utf8' }).split(' ')[1]!;
+    expect(sshKeyFingerprint(`192.0.2.10 ${pub}`)).toBe(expected);
+    expect(sshKeyFingerprint('garbage')).toBeNull();
+  });
+});
+
+describe('createSshRunner', () => {
+  it('password auth: sshpass with the password only in the environment, trust-on-first-use known_hosts in the state dir', async () => {
+    const d = mkdir(); const r = recorder();
+    const run = createSshRunner({ stateDir: d, exec: r.exec });
+    await run(base, '/ip address export hide-sensitive', 5000);
+    const c = r.calls[0]!;
+    expect(c.file).toBe('sshpass'); expect(c.args.slice(0, 3)).toEqual(['-e', 'ssh', '-o']); expect(c.env.SSHPASS).toBe('LAB-PASSWORD-ONE');
+    expect(c.args.join(' ')).not.toContain('LAB-PASSWORD-ONE'); expect(c.args.join(' ')).toContain(`UserKnownHostsFile=${path.join(d, 'known_hosts')}`);
+    expect(c.args.join(' ')).toContain('StrictHostKeyChecking=accept-new');
+  });
+  it('key auth: plain ssh, no SSHPASS', async () => {
+    const d = mkdir(); const r = recorder();
+    await createSshRunner({ stateDir: d, exec: r.exec })({ ...base, password: undefined, keyFile: '/keys/k' }, 'x', 5000);
+    expect(r.calls[0]!.file).toBe('ssh'); expect(r.calls[0]!.env.SSHPASS).toBeUndefined();
+  });
+  it('no credentials at all: refuses without running anything', async () => {
+    const r = recorder();
+    const out = await createSshRunner({ stateDir: mkdir(), exec: r.exec })({ ...base, password: undefined }, 'x', 5000);
+    expect(out.code).toBe(255); expect(r.calls).toHaveLength(0);
+  });
+  it('pinned host key: scanned key must match, is written to a private per-device file, and used with StrictHostKeyChecking=yes', async () => {
+    const d = mkdir(); const k = path.join(d, 'gen'); execFileSync('ssh-keygen', ['-q', '-t', 'ed25519', '-N', '', '-f', k], { stdio: 'ignore' });
+    const line = `192.0.2.10 ${fs.readFileSync(`${k}.pub`, 'utf8').trim().split(' ').slice(0, 2).join(' ')}`;
+    const pin = sshKeyFingerprint(line)!;
+    const state = mkdir(); const r = recorder([{ stdout: `# comment\n${line}\n` }]);
+    const out = await createSshRunner({ stateDir: state, exec: r.exec })({ ...base, hostKeySha256: pin }, 'x', 5000);
+    expect(out.code).toBe(0); expect(r.calls[0]!.file).toBe('ssh-keyscan'); expect(r.calls[1]!.file).toBe('sshpass');
+    const arg = r.calls[1]!.args.join(' '); expect(arg).toContain('StrictHostKeyChecking=yes');
+    const khFile = /UserKnownHostsFile=(\S+)/.exec(arg)![1]!;
+    expect(khFile.startsWith(path.join(state, 'pinned'))).toBe(true); expect(fs.readFileSync(khFile, 'utf8').trim()).toBe(line); expect(fs.statSync(khFile).mode & 0o777).toBe(0o600);
+  });
+  it('pinned host key that does not match: connection is never attempted', async () => {
+    const d = mkdir(); const k = path.join(d, 'gen'); execFileSync('ssh-keygen', ['-q', '-t', 'ed25519', '-N', '', '-f', k], { stdio: 'ignore' });
+    const line = `192.0.2.10 ${fs.readFileSync(`${k}.pub`, 'utf8').trim().split(' ').slice(0, 2).join(' ')}`;
+    const r = recorder([{ stdout: `${line}\n` }]);
+    const out = await createSshRunner({ stateDir: mkdir(), exec: r.exec })({ ...base, hostKeySha256: 'SHA256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA' }, 'x', 5000);
+    expect(out.code).toBe(255); expect(out.stderr).toMatch(/does not match the pinned/); expect(r.calls.map((c) => c.file)).toEqual(['ssh-keyscan']);
+  });
+  it('pinned but unreadable host key: refuses', async () => {
+    const r = recorder([{ stdout: '', code: 1 }]);
+    const out = await createSshRunner({ stateDir: mkdir(), exec: r.exec })({ ...base, hostKeySha256: 'SHA256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA' }, 'x', 5000);
+    expect(out.code).toBe(255); expect(r.calls).toHaveLength(1);
+  });
+  it('a state directory that is not private is refused', async () => {
+    const r = recorder();
+    const out = await createSshRunner({ stateDir: mkdir(0o755), exec: r.exec })(base, 'x', 5000);
+    expect(out.code).toBe(255); expect(out.stderr).toMatch(/not private/); expect(r.calls).toHaveLength(0);
+  });
+});
