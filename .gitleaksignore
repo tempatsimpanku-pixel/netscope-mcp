@@ -2,3 +2,5 @@
 5edfcfd0bbeaeaaf3b4bde6f4efbaaa4ee0712df:test/unit/allow.test.ts:non-documentation-ipv4:113
 5edfcfd0bbeaeaaf3b4bde6f4efbaaa4ee0712df:test/unit/engine.test.ts:non-documentation-ipv4:58
 5edfcfd0bbeaeaaf3b4bde6f4efbaaa4ee0712df:test/unit/engine.test.ts:non-documentation-ipv4:336
+# header of an earlier revision of this file
+e112112abba31d637a7cabfad114edf499e70057:.gitleaksignore:non-documentation-ipv4:1
