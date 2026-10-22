@@ -55,7 +55,7 @@ describe('mikrotik_read', () => {
   it('resolves by id, by name (case-insensitive) and by host, never a free host', async () => {
     const s = mk({ transport: stub() });
     for (const ref of ['rtr-core-1', 'RTR-CORE-1', '192.0.2.10', 'id:rtr-core-1']) expect((await s.read({ device: ref, command: '/system resource print' })).isError, ref).toBe(false);
-    expect((await s.read({ device: '8.8.8.8', command: '/system resource print' })).isError).toBe(true);
+    expect((await s.read({ device: '203.0.113.9', command: '/system resource print' })).isError).toBe(true);
     expect((await s.read({ device: undefined, command: '/system resource print' })).isError).toBe(true);
   });
   it('talks to a real (fake) RouterOS over the pool; write verbs never reach the wire', async () => {
@@ -333,7 +333,7 @@ describe('ping / traceroute', () => {
   it('the last argv element is always a clean address; bad numbers never reach the runner', async () => {
     const calls: string[][] = [];
     const s = mk({ allowLocalProbe: true, local: async (_f, a) => { calls.push(a); return { code: 0, stdout: 'ok', stderr: '' }; } });
-    for (const t of ['-f', '-i0.001', '--help', '1.1.1.1 -f', '1.1.1.1\n-f', '$(id)', '`id`', '1.1.1.1|id', '1.1.1.1/8']) { await s.ping({ from: 'local', target: t }); await s.traceroute({ from: 'local', target: t }); }
+    for (const t of ['-f', '-i0.001', '--help', '203.0.113.1 -f', '203.0.113.1\n-f', '$(id)', '`id`', '203.0.113.1|id', '203.0.113.1/8']) { await s.ping({ from: 'local', target: t }); await s.traceroute({ from: 'local', target: t }); }
     for (const c of calls) expect(c[c.length - 1]).toMatch(/^[A-Za-z0-9][A-Za-z0-9.:-]*$/);
     calls.length = 0;
     for (const n of [0, 11, -1, 1.5, '1e1', '0x5', Infinity, {}]) await s.ping({ from: 'local', target: '192.0.2.8', count: n });
