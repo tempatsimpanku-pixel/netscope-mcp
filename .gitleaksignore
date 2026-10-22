@@ -1,4 +1,4 @@
-# Public resolver addresses (1.1.1.1 / 8.8.8.8) used in early test fixtures, replaced by RFC 5737 addresses in a later commit.
+# Public DNS resolver addresses used in early test fixtures; replaced by RFC 5737 addresses in a later commit.
 5edfcfd0bbeaeaaf3b4bde6f4efbaaa4ee0712df:test/unit/allow.test.ts:non-documentation-ipv4:113
 5edfcfd0bbeaeaaf3b4bde6f4efbaaa4ee0712df:test/unit/engine.test.ts:non-documentation-ipv4:58
 5edfcfd0bbeaeaaf3b4bde6f4efbaaa4ee0712df:test/unit/engine.test.ts:non-documentation-ipv4:336
