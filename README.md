@@ -1,11 +1,34 @@
 # netscope-mcp
 
-**Give your LLM eyes on your ISP network — without giving it hands.**
+[![CI](https://github.com/OWNER/netscope-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/OWNER/netscope-mcp/actions/workflows/ci.yml)
+[![Security](https://github.com/OWNER/netscope-mcp/actions/workflows/security.yml/badge.svg)](https://github.com/OWNER/netscope-mcp/actions/workflows/security.yml)
+[![npm](https://img.shields.io/npm/v/netscope-mcp.svg)](https://www.npmjs.com/package/netscope-mcp)
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/OWNER/netscope-mcp/badge)](https://securityscorecards.dev/viewer/?uri=github.com/OWNER/netscope-mcp)
 
-`netscope-mcp` is a strictly **read-only** [Model Context Protocol](https://modelcontextprotocol.io) server for ISP/WISP operators. It lets an AI assistant inspect many MikroTik RouterOS (v6/v7) routers and switches at once, using one-call diagnosis recipes built for NOC work. VyOS and GenieACS (TR-069) support is planned for v0.2.
+**Give your LLM eyes on your ISP network, without giving it hands.**
 
-> **Status:** v0.1, not yet published to npm. Install from a tarball or from source (see Quickstart).
+`netscope-mcp` is a strictly **read-only** [Model Context Protocol](https://modelcontextprotocol.io) server for ISP/WISP network operators. It lets an AI assistant (Claude, Codex, Cursor, any MCP client) inspect many MikroTik RouterOS (v6/v7) routers and switches at once, using one-call diagnosis recipes built for NOC work. VyOS and GenieACS (TR-069) support is planned for v0.2.
+
+> **Status:** v0.1. npm publication is pending; until then install from a release tarball or from source (see Quickstart).
 > Not affiliated with or endorsed by MikroTik. "MikroTik" and "RouterOS" are trademarks of their owners.
+
+<!-- demo: replace with the recorded GIF/asciinema once published, see docs/DEMO.md -->
+
+## The problem
+
+A NOC engineer at a small ISP answers the same questions all day: *Is this router healthy? Why is this optical link weak? Which router is customer X on? What is plugged into this port?* Each answer means logging in to several routers and running a handful of commands.
+
+An LLM can do that legwork, but handing a model a RouterOS login with write access is a bad idea: one hallucinated `/system reset-configuration` or `/ip firewall filter remove` can take down customers. Most MikroTik MCP servers expose the whole router and rely on you to be careful.
+
+## Why read-only matters
+
+`netscope-mcp` makes the safe thing the only thing:
+
+- **Deny-by-default allowlist.** Only `print`, `monitor … once`, `/<menu> export hide-sensitive`, `ping` and `traceroute` on a positive list of menus are ever sent. Anything else is refused *before* credentials are loaded or a device is contacted.
+- **Secrets never reach the model.** Output is redacted by key name, by pattern and by the exact credential values the server holds; script bodies are masked.
+- **A read-only router account is the real boundary.** The guard is one layer, not a sandbox. [We show you how to create the RouterOS user](docs/ROUTEROS-READONLY-USER.md) so that even a bug in this project cannot change a router.
+- **Auditable.** 1,270+ automated tests including a security corpus (770 allowlist cases, 73 redaction cases, HTTP and property tests) run in CI, plus gitleaks, CodeQL, dependency review and OpenSSF Scorecard.
 
 ## Why it is different
 
@@ -29,6 +52,16 @@
 - Output clipping, concurrency limits, timeouts, JSONL audit log (no secret values).
 - Transports: stdio (default) and Streamable HTTP with a mandatory bearer token.
 - API-SSL (port 8729) with certificate verification by default, optional fingerprint pinning, SSH (with host-key pin) for `export`.
+
+## 60-second overview
+
+1. **Create a read-only RouterOS user** (a `read` policy group, API access only).
+2. **Describe your routers** in `routers.yaml` (credentials come from environment variables or a `0600` file, never plain YAML).
+3. **Add the server to your MCP client** and ask in plain language:
+
+> "Which router has customer `alice@example.net` connected, and is its uplink optical level OK?"
+
+A full worked example is in [docs/DEMO.md](docs/DEMO.md). The detailed steps follow.
 
 ## Quickstart
 
@@ -160,11 +193,15 @@ Details: [SECURITY.md](SECURITY.md) · [docs/ROUTEROS-READONLY-USER.md](docs/ROU
 
 ## Documentation
 
-[Recipes](docs/RECIPES.md) · [Configuration](docs/CONFIG.md) · [Snapshot](docs/SNAPSHOT.md) · [FAQ](docs/FAQ.md) · [Bahasa Indonesia](README.id.md)
+[Demo](docs/DEMO.md) · [Recipes](docs/RECIPES.md) · [Configuration](docs/CONFIG.md) · [Snapshot](docs/SNAPSHOT.md) · [FAQ](docs/FAQ.md) · [Bahasa Indonesia](README.id.md)
 
 ## Library use
 
 The core is importable without MCP: `import { NetScope, planRosCommand, redactText } from 'netscope-mcp/core'`; the MCP and HTTP front-ends are in `netscope-mcp/server`.
+
+## Used in production
+
+netscope-mcp was built by, and is used daily at, a small Indonesian ISP to give its NOC assistant read access to dozens of MikroTik routers (backbone, aggregation and edge). It is exercised against real fleets, not only simulators. Names and addresses are intentionally omitted here; if you run it, please open an issue or discussion and tell us your scale (anonymous is fine) so we can list adopters.
 
 ## Roadmap
 
@@ -174,7 +211,7 @@ The core is importable without MCP: `import { NetScope, planRosCommand, redactTe
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md). Report vulnerabilities privately as described in [SECURITY.md](SECURITY.md).
+Issues and pull requests are welcome, especially: RouterOS version quirks, new read-only recipes, translations of the docs, and security-test cases for the allowlist. Read [CONTRIBUTING.md](CONTRIBUTING.md) first (read-only is a hard requirement; fixtures use only documentation addresses). Report vulnerabilities privately as described in [SECURITY.md](SECURITY.md).
 
 ## License
 
