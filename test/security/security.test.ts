@@ -10,6 +10,7 @@ import { describe, expect, it } from 'vitest';
 import fc from 'fast-check';
 import fs from 'node:fs';
 import http from 'node:http';
+import type { RosPlan } from '../../src/core/index.js';
 import { PolicyDenied as NetReadDenied, planRosCommand, checkProbeTarget, checkSnmpOid, redactText as redactNetOutput, scrubExact, scrubMessage as scrubError, MASK } from '../../src/core/index.js';
 
 type Fn = 'planRosCommand' | 'checkProbeTarget' | 'checkSnmpOid' | 'httpGuard';
@@ -24,7 +25,7 @@ const ALLOWED_VERBS = new Set(['print', 'monitor', 'ping', 'traceroute']);
 const SECRET_COL = /password|passwd|secret|psk|private|community|key|token|passphrase|credential|(^|[-_.])(pin|pwd|pw|pass|auth)($|[-_.])/i;
 
 /** Invariants every accepted RouterOS plan must satisfy, whatever the input was. */
-function assertSafePlan(plan: any, input: unknown): void {
+function assertSafePlan(plan: RosPlan, input: unknown): void {
   const where = `input=${JSON.stringify(String(input).slice(0, 120))}`;
   if (plan.kind === 'export') {
     expect(plan.sshCommand, where).toMatch(/^\/[a-z0-9 -]*export( (hide-sensitive|terse|verbose|compact))+$/);
@@ -50,17 +51,17 @@ describe('allowlist regression corpus', () => {
   describe.each(['a', 'b', 'c', 'd', 'e', 'f', 'g'])('group %s – RouterOS command planning', (g) => {
     for (const c of ros.filter((x) => x.group === g)) {
       it(`${c.id} ${c.expect}: ${c.why}`, () => {
-        let plan: any; let denied = false;
+        let plan: RosPlan | undefined; let denied = false;
         try { plan = planRosCommand(c.input as string); } catch (e) {
           if (!(e instanceof NetReadDenied)) throw e; // anything but a policy denial is a bug
           denied = true;
         }
         if (c.expect === 'allow') expect(denied, `should be allowed: ${JSON.stringify(c.input)}`).toBe(false);
         if (c.expect === 'deny') expect(denied, `should be denied: ${JSON.stringify(c.input).slice(0, 160)}`).toBe(true);
-        if (!denied) {
+        if (!denied && plan) {
           assertSafePlan(plan, c.input);
-          if (c.check === 'forced-safe-proplist') {
-            const word = (plan.words as string[]).find((w) => w.startsWith('=.proplist='));
+          if (c.check === 'forced-safe-proplist' && plan.kind === 'api') {
+            const word = plan.words.find((w) => w.startsWith('=.proplist='));
             expect(word, 'a proplist must be forced on secret menus').toBeTruthy();
             for (const col of word!.slice('=.proplist='.length).split(',')) expect(SECRET_COL.test(col), `column ${col}`).toBe(false);
           }
@@ -152,7 +153,7 @@ describe.skipIf(!!startHttpTestServer)('group k – HTTP transport (helper missi
 const TOKENS = ['/ip', 'address', 'print', 'set', 'add', 'remove', 'where', 'and', 'or', 'not', 'name=x', 'password=x', 'proplist=password', 'export', 'hide-sensitive', 'file=x', '/system', 'reboot', 'script', ';', '|', '\n', '\0', '"', '=', '?', '.id', '=.tag=1', '[', ']', '$', '`', 'ping', '127.0.0.1', '192.0.2.1', 'count=999', 'monitor', 'once', '/tool', 'fetch', '／', '​', 'terse', 'detail', 'count-only', '/ppp', 'secret'];
 describe('group l – properties (fast-check)', () => {
   const assertDeniedOrSafe = (text: string) => {
-    try { assertSafePlan(planRosCommand(text), text); } catch (e) { if (!(e instanceof NetReadDenied)) { if ((e as Error).name === 'AssertionError' || (e as any).matcherResult) throw e; throw new Error(`non-policy error for ${JSON.stringify(text)}: ${(e as Error).message}`); } }
+    try { assertSafePlan(planRosCommand(text), text); } catch (e) { if (!(e instanceof NetReadDenied)) { if ((e as Error).name === 'AssertionError' || 'matcherResult' in (e as object)) throw e; throw new Error(`non-policy error for ${JSON.stringify(text)}: ${(e as Error).message}`, { cause: e }); } }
   };
   it('random strings: only NetReadDenied or a safe plan', () => { fc.assert(fc.property(fc.string({ maxLength: 400 }), (s) => { assertDeniedOrSafe(s); }), { numRuns: 3000 }); });
   it('random unicode strings: only NetReadDenied or a safe plan', () => { fc.assert(fc.property(fc.string({ unit: 'binary', maxLength: 200 }), (s) => { assertDeniedOrSafe(s); }), { numRuns: 2000 }); });

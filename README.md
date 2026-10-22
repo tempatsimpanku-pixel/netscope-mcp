@@ -1,38 +1,181 @@
 # netscope-mcp
 
-Read-only [MCP](https://modelcontextprotocol.io) server for ISP/NOC operators: give a model eyes on your network without giving it hands.
-MikroTik RouterOS first.
+**Give your LLM eyes on your ISP network — without giving it hands.**
 
-> Work in progress (v0.1). Full documentation is coming; this is the minimum to run it.
+`netscope-mcp` is a strictly **read-only** [Model Context Protocol](https://modelcontextprotocol.io) server for ISP/WISP operators. It lets an AI assistant inspect many MikroTik RouterOS (v6/v7) routers and switches at once, using one-call diagnosis recipes built for NOC work. VyOS and GenieACS (TR-069) support is planned for v0.2.
 
-## Quick start
+> **Status:** v0.1, not yet published to npm. Install from a tarball or from source (see Quickstart).
+> Not affiliated with or endorsed by MikroTik. "MikroTik" and "RouterOS" are trademarks of their owners.
 
-```sh
-npm ci && npm run build
-cp routers.example.yaml routers.yaml        # edit: your devices; credentials only via env vars or 0600 files
-export ROS_CORE1_USER=... ROS_CORE1_PASS=... # see the example file
-node dist/cli.js --config routers.yaml       # stdio transport (Claude Desktop/Code, Codex, ...)
+## Why it is different
+
+| | Typical MikroTik MCP | netscope-mcp |
+|---|---|---|
+| Goal | Manage a router through an LLM (often including writes) | Let an LLM **observe** a fleet safely |
+| Write protection | Optional read-only switch, or none | Read-only is the only mode: **deny-by-default** allowlist of `print`, `monitor … once`, `export hide-sensitive`, `ping`, `traceroute` |
+| Secrets in output | Returned as the router sends them | Redacted by key name, by pattern and by the exact credential values the server knows; script bodies masked |
+| Tool design | Roughly one tool per RouterOS menu | Nine tools plus **diagnosis recipes** (`health`, `neighbors-map`, `pppoe-lookup`) |
+| Many routers | One device per call | **Batch** across routers in one call; one failing router does not fail the rest |
+| "Which router has customer X?" | Query routers one by one | `pppoe-lookup` across all routers, or a periodic snapshot you can search in milliseconds |
+
+## Features
+
+- Deny-by-default command guard: no abbreviations, no write verbs, no scripts, `where` only on non-secret columns, safe columns forced on `/ppp secret`, `/user`, `/radius`, `/snmp`.
+- Redaction on every response; exact scrubbing of known credentials in error messages.
+- Recipes that replace 5–25 raw calls with one answer.
+- Multi-router batch (up to 30 commands): parallel across routers, sequential per router over one reused session.
+- Optional snapshot store with cross-router search and explicit data age.
+- Account-lockout protection: per-device queue, session reuse, cooldown after a rejected login.
+- Output clipping, concurrency limits, timeouts, JSONL audit log (no secret values).
+- Transports: stdio (default) and Streamable HTTP with a mandatory bearer token.
+- API-SSL (port 8729) with certificate verification by default, optional fingerprint pinning, SSH (with host-key pin) for `export`.
+
+## Quickstart
+
+Requires Node.js 24 or newer.
+
+### 1. Create a read-only RouterOS user
+
+Do this first. The tool-level guard is one layer; a read-only router account is the real boundary.
+See [docs/ROUTEROS-READONLY-USER.md](docs/ROUTEROS-READONLY-USER.md).
+
+### 2. Install
+
+From a release tarball (or build one yourself with `npm ci && npm run build && npm pack`):
+
+```bash
+npm install -g ./netscope-mcp-0.1.0.tgz
+netscope-mcp --version
 ```
 
-HTTP (Streamable HTTP at `/mcp`, bound to 127.0.0.1, bearer token required):
+From source, without installing: `npm ci && npm run build`, then use `node dist/cli.js` wherever this guide says `netscope-mcp`.
 
-```sh
+### 3. Describe your routers
+
+Create `routers.yaml` (a complete example with every field is in [routers.example.yaml](routers.example.yaml)):
+
+```yaml
+settings:
+  audit_log: stderr
+
+routers:
+  - id: core-1
+    host: 192.0.2.10        # documentation address (RFC 5737)
+    port: 8729
+    family: routeros
+    group: backbone
+    tls_ca_file: /etc/netscope-mcp/ca.pem   # or tls_fingerprint256 to pin a self-signed certificate
+    credentials: { user_env: ROS_CORE1_USER, pass_env: ROS_CORE1_PASS }
+```
+
+Credentials are never accepted as plain values in YAML: only environment-variable names or a mode-`0600` file. Full schema: [docs/CONFIG.md](docs/CONFIG.md).
+
+### 4. Check the configuration, then run
+
+```bash
+export ROS_CORE1_USER=netscope-ro
+export ROS_CORE1_PASS='<long random password>'
+netscope-mcp --config ./routers.yaml --check     # prints "configuration OK: 1 router(s)."
+netscope-mcp --config ./routers.yaml             # stdio transport
+```
+
+### 5. Connect your client
+
+**Claude Code:**
+
+```bash
+claude mcp add netscope \
+  --env ROS_CORE1_USER=netscope-ro --env ROS_CORE1_PASS='<password>' \
+  -- netscope-mcp --config /path/to/routers.yaml
+```
+
+**Claude Desktop / Cursor** (`claude_desktop_config.json`, `~/.cursor/mcp.json`):
+
+```json
+{
+  "mcpServers": {
+    "netscope": {
+      "command": "netscope-mcp",
+      "args": ["--config", "/path/to/routers.yaml"],
+      "env": { "ROS_CORE1_USER": "netscope-ro", "ROS_CORE1_PASS": "<password>" }
+    }
+  }
+}
+```
+
+**Codex CLI** (`~/.codex/config.toml`):
+
+```toml
+[mcp_servers.netscope]
+command = "netscope-mcp"
+args = ["--config", "/path/to/routers.yaml"]
+
+[mcp_servers.netscope.env]
+ROS_CORE1_USER = "netscope-ro"
+ROS_CORE1_PASS = "<password>"
+```
+
+Prefer no passwords in client configs? Use `credentials: { file: /etc/netscope-mcp/core-1.cred }` (mode 0600, lines `user=…`, `password=…`).
+
+**Streamable HTTP** (several users, or a client that cannot spawn processes):
+
+```bash
 export NETSCOPE_MCP_TOKEN="$(openssl rand -hex 32)"
-node dist/cli.js --config routers.yaml --http 127.0.0.1:8080
+netscope-mcp --config ./routers.yaml --http 127.0.0.1:8080
+# clients: POST http://127.0.0.1:8080/mcp with  Authorization: Bearer <token>
 ```
+
+### 6. Try it
+
+> "List my devices, then run the health recipe on core-1 and tell me if anything looks wrong."
+>
+> "Which router has customer `alice@example.net` connected?"
+
+Sample output: [docs/RECIPES.md](docs/RECIPES.md).
 
 ## Tools
 
-`list_devices`, `mikrotik_read`, `mikrotik_batch`, `mikrotik_recipe` (`health`, `neighbors-map`, `pppoe-lookup`), `ping`, `traceroute`, `snmp_get`, `switch_read`, `mikrotik_snapshot`.
+| Tool | Purpose |
+|---|---|
+| `list_devices` | List configured devices (`filter`, `group`); never credentials. |
+| `mikrotik_read` | One read-only command: `print` (with `where`/`proplist`/`count-only`), `monitor … once`, `export hide-sensitive` (SSH). |
+| `mikrotik_batch` | Up to 30 `{device, command}` items, fault-tolerant. |
+| `mikrotik_recipe` | `health`, `neighbors-map`, `pppoe-lookup`. |
+| `ping` / `traceroute` | From a router (or `local` when enabled) to a **literal** IP address. |
+| `snmp_get` | SNMP v2c GET/walk on an allowlisted set of subtrees (max 500 rows). |
+| `switch_read` | Ready-made reads for CRS switches; SwOS over SNMP. |
+| `mikrotik_snapshot` | Periodic data and cross-router search, always with data age. Needs `--snapshot`. |
 
-## Safety model (read this)
+Each response is concise text plus `structuredContent`; failures are real errors (`isError: true`) with a cause: `policy`, `auth`, `timeout`, `connect`, `not-found`, `device`, `busy`, `config`.
 
-The tool-side guard is deny-by-default (only `print`, `monitor … once`, `export hide-sensitive`, `ping`, `traceroute` on a positive list of menus) and secrets are redacted in every output.
-It is **not a sandbox**: the real protection is a RouterOS user whose group has no `write`, `policy`, `sensitive`, `reboot`, … rights. Always connect with such a user.
-Output can contain customer data and is sent to your model provider; keep `redact_pii: true` unless you accept that.
+## Security at a glance
 
-`MikroTik` and `RouterOS` are trademarks of their owner; this project is not affiliated with MikroTik.
+- Read-only by construction: anything not on the allowlist is refused with a `policy` error before a device is contacted.
+- Secrets are redacted before they reach the model.
+- HTTP mode refuses to start without a token of at least 32 characters, binds to loopback by default, validates `Host` and `Origin`, accepts `POST /mcp` only and sends no CORS headers.
+- Plain API (port 8728) and unverified TLS work only with `settings.allow_insecure: true`.
+- **Limits, stated honestly:** the guard is a tool-level layer, not a sandbox. Always use a RouterOS account whose policy is read-only.
+
+Details: [SECURITY.md](SECURITY.md) · [docs/ROUTEROS-READONLY-USER.md](docs/ROUTEROS-READONLY-USER.md)
+
+## Documentation
+
+[Recipes](docs/RECIPES.md) · [Configuration](docs/CONFIG.md) · [Snapshot](docs/SNAPSHOT.md) · [FAQ](docs/FAQ.md) · [Bahasa Indonesia](README.id.md)
+
+## Library use
+
+The core is importable without MCP: `import { NetScope, planRosCommand, redactText } from 'netscope-mcp/core'`; the MCP and HTTP front-ends are in `netscope-mcp/server`.
+
+## Roadmap
+
+- **v0.1** — RouterOS v6/v7 (API, API-SSL, SSH for export), recipes, batch, snapshot, SNMP v2c, CRS/SwOS switches, stdio + HTTP.
+- **v0.2** — VyOS read tools, GenieACS read-only tools, SNMPv3, RouterOS v7 REST transport.
+- **v0.3** — change detection between snapshots, per-token device ACLs, MCP prompts/resources.
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md). Report vulnerabilities privately as described in [SECURITY.md](SECURITY.md).
 
 ## License
 
-Apache-2.0
+Apache-2.0. See `LICENSE` and `NOTICE`.

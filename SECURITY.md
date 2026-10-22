@@ -75,7 +75,7 @@ tool with any text; (2) another local process or a web page attempting to reach 
 | SNMP | Read-only GET/GETNEXT/GETBULK on an OID allowlist; row cap. |
 | Output | Secret redaction by key name and by pattern, exact scrubbing of the known credentials in errors; optional PII redaction. |
 | Transport | stdio by default; HTTP binds to loopback, requires a bearer token, validates `Host` and `Origin`, accepts POST only, bounded body, no CORS headers. |
-| Router | **Dedicated read-only RouterOS user** – see [ROUTEROS-READONLY-USER.md](ROUTEROS-READONLY-USER.md). |
+| Router | **Dedicated read-only RouterOS user** – see [ROUTEROS-READONLY-USER.md](docs/ROUTEROS-READONLY-USER.md). |
 | Resources | Global and per-device concurrency limits, timeouts, row limits. |
 
 ## Limits of the guarantee
@@ -94,6 +94,9 @@ tool with any text; (2) another local process or a web page attempting to reach 
   host keys, keep credential files at mode `0600`, keep the HTTP transport on loopback.
 - **Probing still maps your network.** Private addresses remain valid probe targets unless you set a
   deny list; ICMP only, no port scanning.
+- **IPv6 probe targets.** `::`, `::1`, `fe80::/10` and `ff00::/8` are refused; IPv4-mapped (`::ffff:a.b.c.d`) and IPv4-compatible (`::a.b.c.d`) forms are checked against the IPv4 rules. Other IPv6 addresses (including ULA `fc00::/7`) stay valid targets unless you list them in `probe.deny_cidrs`.
+- **Error text is scrubbed by keyword.** In error messages the word after `password`, `key`, `token`, `secret`, `community`, `psk` is masked, which can also hide harmless words; that is deliberate.
+- **Unknown-section `add` rows.** When redaction sees an `add … name=` row without its `/section` header, a credential-looking `name` (10+ characters mixing digits, lower and upper case) is masked; plain names are kept.
 - No guarantee is given for RouterOS versions or policy names that were not tested; run the
   acceptance tests in the read-only user guide on your version.
 
