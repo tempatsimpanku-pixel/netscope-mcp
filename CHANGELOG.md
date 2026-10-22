@@ -7,6 +7,8 @@ this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Fixed
+- `server.json` violated the official MCP registry schema (`description` was 128 characters, the limit is 100). It is now shortened, and `npm run check:server-json` (vendored schema `scripts/server.schema.2025-12-11.json`, Ajv) validates it and checks name/version agree with `package.json`; it runs in CI and in the release workflow.
+- `routers.example.yaml` and the README quickstart YAML now pass `netscope-mcp --check` exactly as written (only the documented environment variables are needed): options that point to files on disk (`tls_ca_file`, `ssh.key_file`, `credentials.file`) are shown as commented-out alternatives. A regression test (`test/unit/docs-config.test.ts`) keeps them runnable.
 - `/snmp community print` returned empty rows: it now shows the access scope (`addresses`, `security`, `read-access`, `write-access`, `disabled`) and never the community or the passwords; a row with no visible fields says so.
 - `mikrotik_batch` shows the device name (or the reference as given) for refused items instead of `?`.
 - ARP summaries (recipe `neighbors-map`, snapshot) separate entries with `;` and quote interface names with spaces/dots, so `1. ether1` no longer reads like a list number.

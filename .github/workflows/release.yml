@@ -47,6 +47,7 @@ jobs:
           case "$VERSION" in *-*) echo "prerelease=true" >> "$GITHUB_OUTPUT";; *) echo "prerelease=false" >> "$GITHUB_OUTPUT";; esac
       - run: npm ci
       - run: npx tsc --noEmit
+      - run: npm run check:server-json
       - run: npx eslint .
       - run: npx vitest run
       - run: npm run build

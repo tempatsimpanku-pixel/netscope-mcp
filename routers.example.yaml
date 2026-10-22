@@ -3,9 +3,15 @@
 # Credentials are NEVER written here. Use environment variables (`*_env`) or a credentials
 # file (`file`) that is mode 0600 (lines: user=..., password=..., community=...).
 #
-#   export ROS_CORE1_USER=netscope-ro
-#   export ROS_CORE1_PASS='<long random password>'
-#   netscope-mcp --config routers.yaml
+#   export ROS_CORE1_USER=netscope-ro ROS_CORE1_PASS='<long random password>'
+#   export ROS_EDGE1_USER=netscope-ro ROS_EDGE1_PASS='<long random password>'
+#   export ROS_SW1_USER=netscope-ro   ROS_SW1_PASS='<long random password>'
+#   export SNMP_CORE1_COMMUNITY=public SNMP_SW2_COMMUNITY=public
+#   netscope-mcp --config routers.example.yaml --check     # passes as-is: "configuration OK: 4 router(s)."
+#
+# This file passes --check unchanged, so every option that points at a file on disk (CA bundle,
+# SSH key, credentials file) is shown as a commented-out line: uncomment it once the file exists.
+# --check verifies those files exist (credentials files must also be mode 0600).
 
 settings:
   redact_pii: true            # mask customer MAC tails / free text on customer menus, disable /log
@@ -33,22 +39,25 @@ routers:
     labels: { role: core }    # role: core makes the snapshot worker poll it less often
     tls_fingerprint256: "00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF"   # pin a self-signed certificate (or use tls_ca_file)
     credentials: { user_env: ROS_CORE1_USER, pass_env: ROS_CORE1_PASS }
-    ssh: { port: 22, key_file: /etc/netscope-mcp/ssh/core-1.key, host_key_sha256: "SHA256:AbCdEfGhIjKlMnOpQrStUvWxYz0123456789ABCDEFG" }   # only needed for `export`
+    # SSH is only needed for `export`; add `key_file: /etc/netscope-mcp/ssh/core-1.key` (must exist) for key auth
+    ssh: { port: 22, host_key_sha256: "SHA256:AbCdEfGhIjKlMnOpQrStUvWxYz0123456789ABCDEFG" }
     snmp: { community_env: SNMP_CORE1_COMMUNITY }
 
   - id: rtr-edge-1
     host: 192.0.2.11
     family: routeros
     group: edge
-    tls_ca_file: /etc/netscope-mcp/ca.pem
-    credentials: { file: /etc/netscope-mcp/edge-1.cred }
+    tls_fingerprint256: "00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF"
+    # tls_ca_file: /etc/netscope-mcp/ca.pem                  # alternative to the pin above (file must exist)
+    credentials: { user_env: ROS_EDGE1_USER, pass_env: ROS_EDGE1_PASS }
+    # credentials: { file: /etc/netscope-mcp/edge-1.cred }   # alternative: mode-0600 file instead of *_env
     fallback: { host: 198.51.100.1, port: 28729, label: "management port-forward" }
 
   - id: sw-crs-1
     host: 198.51.100.21
     family: switch
     group: access
-    tls_ca_file: /etc/netscope-mcp/ca.pem
+    tls_fingerprint256: "00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF"
     credentials: { user_env: ROS_SW1_USER, pass_env: ROS_SW1_PASS }
 
   - id: sw-css-1

@@ -38,6 +38,9 @@ jobs:
       - name: Typecheck
         run: npx tsc --noEmit
 
+      - name: Validate server.json (MCP registry schema)
+        run: npm run check:server-json
+
       - name: Lint
         run: npx eslint .
 

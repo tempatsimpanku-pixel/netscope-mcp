@@ -65,6 +65,7 @@
     "test": "vitest run",
     "test:security": "vitest run test/security --passWithNoTests",
     "start": "node dist/cli.js",
+    "check:server-json": "node scripts/check-server-json.mjs",
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
@@ -76,6 +77,8 @@
     "@eslint/js": "^10.0.0",
     "@types/node": "^24.0.0",
     "@vitest/coverage-v8": "^5.0.5",
+    "ajv": "^8.20.0",
+    "ajv-formats": "^3.0.1",
     "eslint": "^10.13.0",
     "fast-check": "^4.10.2",
     "typescript": "~5.9.0",

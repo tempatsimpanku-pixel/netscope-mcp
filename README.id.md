@@ -49,7 +49,7 @@ routers:
     host: 192.0.2.10
     port: 8729
     family: routeros
-    tls_ca_file: /etc/netscope-mcp/ca.pem   # atau tls_fingerprint256 untuk sertifikat self-signed
+    tls_fingerprint256: "00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF"   # ganti dengan pin SHA-256 router Anda (atau tls_ca_file: /path/ca.pem)
     credentials: { user_env: ROS_CORE1_USER, pass_env: ROS_CORE1_PASS }
 ```
 

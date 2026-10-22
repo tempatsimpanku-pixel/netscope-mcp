@@ -19,18 +19,22 @@ routers:
 const err = (text: string, env: NodeJS.ProcessEnv = ENV) => { try { parseConfig(text, { env }); } catch (e) { return (e as Error).message; } return ''; };
 
 describe('routers.example.yaml stays valid', () => {
-  it('parses once its placeholder paths and env vars exist', () => {
-    const d = tmp();
-    for (const f of ['ssh/core-1.key', 'ca.pem', 'edge-1.cred']) { fs.mkdirSync(path.dirname(path.join(d, f)), { recursive: true }); fs.writeFileSync(path.join(d, f), f === 'edge-1.cred' ? 'user=ro\npassword=pw-123\n' : 'x', { mode: 0o600 }); }
-    const text = fs.readFileSync(path.resolve(import.meta.dirname, '../../routers.example.yaml'), 'utf8').replaceAll('/etc/netscope-mcp', d);
-    const env = { ROS_CORE1_USER: 'u', ROS_CORE1_PASS: 'p', SNMP_CORE1_COMMUNITY: 'c', ROS_SW1_USER: 'u', ROS_SW1_PASS: 'p', SNMP_SW2_COMMUNITY: 'c' };
-    const cfg = parseConfig(text, { env, baseDir: d });
+  it('parses as written (only the documented env vars needed) and with the optional file lines enabled', () => {
+    const file = path.resolve(import.meta.dirname, '../../routers.example.yaml');
+    const text = fs.readFileSync(file, 'utf8');
+    const env = { ROS_CORE1_USER: 'u', ROS_CORE1_PASS: 'p', SNMP_CORE1_COMMUNITY: 'c', ROS_EDGE1_USER: 'u', ROS_EDGE1_PASS: 'p', ROS_SW1_USER: 'u', ROS_SW1_PASS: 'p', SNMP_SW2_COMMUNITY: 'c' };
+    const cfg = parseConfig(text, { env, baseDir: '/nonexistent' });
     expect(cfg.routers.map((r) => r.device.id)).toEqual(['rtr-core-1', 'rtr-edge-1', 'sw-crs-1', 'sw-css-1']);
     expect(cfg.settings).toMatchObject({ redact_pii: true, allow_insecure: false, allow_local_probe: false });
     expect(cfg.warnings).toEqual([]);
     expect(cfg.routers[0]!.device).toMatchObject({ port: 8729, transport: 'api-ssl', tls: { verify: true, fingerprint256: expect.any(String) }, ssh: { port: 22 }, labels: { role: 'core' } });
     expect(cfg.routers[1]!.device.fallback).toMatchObject({ port: 28729 });
     expect(cfg.routers[3]!.device).toMatchObject({ family: 'swos' });
+    // Uncommenting the file-based alternatives works once the files exist.
+    const d = tmp();
+    for (const f of ['ssh/core-1.key', 'ca.pem', 'edge-1.cred']) { fs.mkdirSync(path.dirname(path.join(d, f)), { recursive: true }); fs.writeFileSync(path.join(d, f), f === 'edge-1.cred' ? 'user=ro\npassword=pw-123\n' : 'x', { mode: 0o600 }); }
+    const enabled = text.replaceAll('/etc/netscope-mcp', d).replace('host_key_sha256', `key_file: ${d}/ssh/core-1.key, host_key_sha256`);
+    expect(parseConfig(enabled, { env, baseDir: d }).routers[0]!.device.ssh).toMatchObject({ keyFile: `${d}/ssh/core-1.key` });
   });
   it('contains no real-looking addresses (documentation ranges only)', () => {
     const text = fs.readFileSync(path.resolve(import.meta.dirname, '../../routers.example.yaml'), 'utf8');

@@ -97,7 +97,7 @@ routers:
     port: 8729
     family: routeros
     group: backbone
-    tls_ca_file: /etc/netscope-mcp/ca.pem   # or tls_fingerprint256 to pin a self-signed certificate
+    tls_fingerprint256: "00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF"   # replace with your router's SHA-256 pin (or use tls_ca_file: /path/to/ca.pem)
     credentials: { user_env: ROS_CORE1_USER, pass_env: ROS_CORE1_PASS }
 ```
 
