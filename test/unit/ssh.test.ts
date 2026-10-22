@@ -1,9 +1,9 @@
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { buildSshArgs, createSshRunner, sshKeyFingerprint, type SshOutcome, type SshTarget } from '../../src/core/index.js';
+import { ASKPASS_ENV, buildSshArgs, createSshRunner, ensureAskpass, sshKeyFingerprint, type SshOutcome, type SshTarget } from '../../src/core/index.js';
 
 const dirs: string[] = [];
 const mkdir = (mode = 0o700) => { const d = fs.mkdtempSync(path.join(os.tmpdir(), 'netscope-ssht-')); fs.chmodSync(d, mode); dirs.push(d); return d; };
@@ -46,19 +46,35 @@ describe('sshKeyFingerprint', () => {
 });
 
 describe('createSshRunner', () => {
-  it('password auth: sshpass with the password only in the environment, trust-on-first-use known_hosts in the state dir', async () => {
+  it('password auth: SSH_ASKPASS helper, password only in the child environment (never argv), trust-on-first-use known_hosts in the state dir', async () => {
     const d = mkdir(); const r = recorder();
     const run = createSshRunner({ stateDir: d, exec: r.exec });
     await run(base, '/ip address export hide-sensitive', 5000);
     const c = r.calls[0]!;
-    expect(c.file).toBe('sshpass'); expect(c.args.slice(0, 3)).toEqual(['-e', 'ssh', '-o']); expect(c.env.SSHPASS).toBe('LAB-PASSWORD-ONE');
-    expect(c.args.join(' ')).not.toContain('LAB-PASSWORD-ONE'); expect(c.args.join(' ')).toContain(`UserKnownHostsFile=${path.join(d, 'known_hosts')}`);
-    expect(c.args.join(' ')).toContain('StrictHostKeyChecking=accept-new');
+    expect(c.file).toBe('ssh'); expect(c.env[ASKPASS_ENV]).toBe('LAB-PASSWORD-ONE'); expect(c.env.SSHPASS).toBeUndefined();
+    expect(c.env.SSH_ASKPASS).toBe(path.join(d, 'askpass.sh')); expect(c.env.SSH_ASKPASS_REQUIRE).toBe('force');
+    expect(c.args.join(' ')).not.toContain('LAB-PASSWORD-ONE'); expect(c.file + c.args.join(' ')).not.toContain('sshpass');
+    expect(c.args.join(' ')).toContain(`UserKnownHostsFile=${path.join(d, 'known_hosts')}`); expect(c.args.join(' ')).toContain('StrictHostKeyChecking=accept-new');
+  });
+  it('the askpass helper holds no secret, is private, answers a password prompt only, and fails closed', () => {
+    const d = mkdir(); const file = ensureAskpass(d);
+    expect(fs.statSync(file).mode & 0o777).toBe(0o700); expect(fs.readFileSync(file, 'utf8')).not.toContain('LAB-PASSWORD-ONE');
+    const ask = (prompt: string, pw?: string) => spawnSync(file, [prompt], { env: { PATH: '/usr/bin:/bin', ...(pw === undefined ? {} : { [ASKPASS_ENV]: pw }) }, encoding: 'utf8' });
+    const ok = ask("ro-user@192.0.2.10's password: ", 'LAB-PASSWORD-ONE'); expect(ok.status).toBe(0); expect(ok.stdout).toBe('LAB-PASSWORD-ONE\n');
+    const special = ask('Password:', 'a b\\n$x"y'); expect(special.stdout).toBe('a b\\n$x"y\n');
+    const hostKey = ask('Are you sure you want to continue connecting (yes/no/[fingerprint])? ', 'LAB-PASSWORD-ONE'); expect(hostKey.status).toBe(1); expect(hostKey.stdout).toBe('');
+    const passphrase = ask('Enter passphrase for key /k: ', 'LAB-PASSWORD-ONE'); expect(passphrase.status).toBe(1); expect(passphrase.stdout).toBe('');
+    const none = ask('Password:'); expect(none.status).toBe(1); expect(none.stdout).toBe('');
+    expect(ensureAskpass(d)).toBe(file); // idempotent
+  });
+  it('a tampered helper is rewritten', () => {
+    const d = mkdir(); const file = ensureAskpass(d); fs.writeFileSync(file, '#!/bin/sh\necho pwned\n', { mode: 0o755 });
+    ensureAskpass(d); expect(fs.readFileSync(file, 'utf8')).not.toContain('pwned'); expect(fs.statSync(file).mode & 0o777).toBe(0o700);
   });
   it('key auth: plain ssh, no SSHPASS', async () => {
     const d = mkdir(); const r = recorder();
     await createSshRunner({ stateDir: d, exec: r.exec })({ ...base, password: undefined, keyFile: '/keys/k' }, 'x', 5000);
-    expect(r.calls[0]!.file).toBe('ssh'); expect(r.calls[0]!.env.SSHPASS).toBeUndefined();
+    expect(r.calls[0]!.file).toBe('ssh'); expect(r.calls[0]!.env[ASKPASS_ENV]).toBeUndefined(); expect(r.calls[0]!.env.SSH_ASKPASS).toBeUndefined();
   });
   it('no credentials at all: refuses without running anything', async () => {
     const r = recorder();
@@ -71,7 +87,7 @@ describe('createSshRunner', () => {
     const pin = sshKeyFingerprint(line)!;
     const state = mkdir(); const r = recorder([{ stdout: `# comment\n${line}\n` }]);
     const out = await createSshRunner({ stateDir: state, exec: r.exec })({ ...base, hostKeySha256: pin }, 'x', 5000);
-    expect(out.code).toBe(0); expect(r.calls[0]!.file).toBe('ssh-keyscan'); expect(r.calls[1]!.file).toBe('sshpass');
+    expect(out.code).toBe(0); expect(r.calls[0]!.file).toBe('ssh-keyscan'); expect(r.calls[1]!.file).toBe('ssh');
     const arg = r.calls[1]!.args.join(' '); expect(arg).toContain('StrictHostKeyChecking=yes');
     const khFile = /UserKnownHostsFile=(\S+)/.exec(arg)![1]!;
     expect(khFile.startsWith(path.join(state, 'pinned'))).toBe(true); expect(fs.readFileSync(khFile, 'utf8').trim()).toBe(line); expect(fs.statSync(khFile).mode & 0o777).toBe(0o600);

@@ -14,7 +14,7 @@ All output below is real output of this version, produced by the test suite agai
 
 **Input:** `device` (one id, or a list of up to 8). **Required.**
 
-One call for "is this router OK?": system resource, health sensors, ethernet link summary and SFP/optical readings for the ports that are up (down ports are only counted and named).
+One call for "is this router OK?": system resource, health sensors, ethernet link summary and SFP/optical readings for the ports that are up (down ports are only counted and named). Port names with spaces or `+` (e.g. `sfp+ 1`) are handled; if one SFP cannot be read, its line says `ERROR …` and the other sections are still returned.
 
 ```text
 [mikrotik_recipe] health

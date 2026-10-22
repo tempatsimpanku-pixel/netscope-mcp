@@ -49,6 +49,8 @@ const settingsSchema = z.object({
   probe: z.object({ allow_cidrs: z.array(z.string()).default([]), deny_cidrs: z.array(z.string()).default([]) }).strict().default({ allow_cidrs: [], deny_cidrs: [] }),
   snapshot: z.object({ interval_min: z.number().min(2).max(1440).default(10), store_customer_data: z.boolean().default(false) }).strict().default({ interval_min: 10, store_customer_data: false }),
   audit_log: z.string().default('stderr'),
+  /** Language of the frame sentences (headers, errors, footers). */
+  locale: z.enum(['en', 'id']).default('en'),
   state_dir: z.string().optional(),
 }).strict();
 
@@ -115,7 +117,7 @@ export function parseConfig(text: string, opts: ParseOptions = {}): ServerConfig
     const usesApi = r.family === 'routeros' || r.family === 'switch';
     if (usesApi && transport === 'api') {
       if (!cfg.settings.allow_insecure) throw new ConfigError(`${where}.transport: plain-text API requires settings.allow_insecure: true.`);
-      warnings.push(`${r.id}: plain-text API (port 8728): credentials cross the network unencrypted. Use api-ssl or a dedicated management network.`);
+      warnings.push(`${r.id}: plain-text API (port ${r.port ?? 8728}): credentials cross the network unencrypted. Use api-ssl or a dedicated management network.`);
     }
     if (usesApi && transport === 'api-ssl' && !verify && !r.tls_fingerprint256) {
       if (!cfg.settings.allow_insecure) throw new ConfigError(`${where}.verify_tls: disabling certificate verification without a pinned fingerprint requires settings.allow_insecure: true.`);

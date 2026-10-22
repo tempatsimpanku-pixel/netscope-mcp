@@ -1,11 +1,12 @@
 import { MASK, SCRIPT_KEYS, SECRET_KEY, maskInlineSecrets, maskMac, maskPiiCell } from './redact.js';
+import type { Messages } from './messages.js';
 import type { RosRow } from './types.js';
 
 export const MAX_ROWS = 300;
 const MAX_VALUE = 300;
 const SECRET_PATH = /(^|\/)(snmp\/community)$/;
 
-export interface FormatOptions { redactPii?: boolean }
+export interface FormatOptions { redactPii?: boolean; messages?: Pick<Messages, 'noRows' | 'noHops'> }
 
 /** Menus whose rows describe customers (names, hosts, devices): with `redactPii` free-text columns there are masked too. */
 export const CUSTOMER_MENU = /^\/(?:ppp\/(?:active|secret)|ip\/dhcp-server\/lease|ip\/hotspot|ip\/arp|queue\/simple|interface\/pppoe-server|interface\/(?:wireless|wifi)\/registration-table|log)\//;
@@ -30,7 +31,7 @@ export function maskRows(rows: RosRow[], apiPath: string, opts: FormatOptions = 
 }
 
 export function formatRosRows(rows: RosRow[], apiPath: string, truncated: boolean, scanned?: number, tail?: number, opts: FormatOptions = {}): string {
-  if (!rows.length) return '(no rows)';
+  if (!rows.length) return opts.messages?.noRows ?? '(no rows)';
   const masked = maskRows(rows, apiPath, opts);
   const lines = masked.map((row, i) => `${i} ${Object.entries(row).map(([k, val]) => `${k}=${val === MASK ? val : /[\s"]/.test(val) ? JSON.stringify(val) : val}`).join(' ')}`);
   const note = tail && scanned !== undefined && scanned > rows.length
@@ -40,8 +41,8 @@ export function formatRosRows(rows: RosRow[], apiPath: string, truncated: boolea
 }
 
 /** The traceroute API re-sends the whole hop table on each update, rows tagged with `.section` (broadcast number). Hops = rows of the LAST broadcast, in order. */
-export function formatTraceroute(rows: RosRow[]): string {
-  if (!rows.length) return '(no hops)';
+export function formatTraceroute(rows: RosRow[], messages?: Pick<Messages, 'noHops'>): string {
+  if (!rows.length) return messages?.noHops ?? '(no hops)';
   const sections = new Map<string, RosRow[]>();
   for (const row of rows) { const key = row['.section'] ?? '0'; (sections.get(key) || sections.set(key, []).get(key)!).push(row); }
   const keys = [...sections.keys()];

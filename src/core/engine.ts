@@ -7,6 +7,7 @@ import { Gate, KeyedQueue } from './limits.js';
 import { RosPool } from './pool.js';
 import { MASK, clip, maskInlineSecrets, maskMac, redactText, scrubExact, scrubMessage, SECRET_KEY } from './redact.js';
 import { defaultSnmp, formatSnmp, nameFor, planSnmp, SNMP_NAMES } from './snmp.js';
+import { resolveMessages, type Locale, type Messages } from './messages.js';
 import { createSshRunner } from './ssh.js';
 import type {
   AuditEntry, CredentialSource, DeviceCredentials, DeviceInfo, DeviceSource, Dialer, LocalRunner, NetResult, RosApiPlan, RosPlan, RosResult, RosRow, RosTarget, RosTransport,
@@ -47,6 +48,10 @@ export interface NetScopeOptions {
   inventoryTtlMs?: number;
   audit?: (entry: AuditEntry) => void;
   now?: () => number;
+  /** Language of the frame sentences the server builds itself (headers, errors, footers). Default `en`. */
+  locale?: Locale;
+  /** Replace individual sentences (see `Messages`); applied on top of `locale`. */
+  messages?: Partial<Messages>;
 }
 
 const ROS_TIMEOUT = { ping: 25_000, traceroute: 45_000, other: 15_000 };
@@ -67,7 +72,9 @@ const SWITCH_COMMANDS: Record<string, string> = {
 const FILTER_RE = /^[a-z0-9.-]{1,40}=[A-Za-z0-9_.:/@ -]{1,80}$/;
 
 const fail = (text: string, errorKind: ErrorKind = 'device'): NetResult => ({ text, isError: true, errorKind });
-const errText = (e: unknown) => scrubMessage(e instanceof Error ? e.message : String(e));
+/** Policy texts are written by this library (no router data in them): only key=value pairs echoed from the caller are masked,
+ * so explanations such as "refused (secrets, endless stream, …)" stay readable. Everything else goes through the full scrub. */
+const errText = (e: unknown) => (e instanceof PolicyDenied || e instanceof DeviceNotFound ? maskInlineSecrets(e.message).slice(0, 2_000) : scrubMessage(e instanceof Error ? e.message : String(e)));
 
 function intArg(v: unknown, lo: number, hi: number, dflt: number, name: string): number {
   if (v === undefined || v === null || v === '') return dflt;
@@ -94,6 +101,8 @@ export class NetScope {
   private readonly localGate = new Gate(4, 30_000);
   private readonly perDevice = new KeyedQueue();
   private readonly o: NetScopeOptions;
+  /** Frame sentences in the configured language. */
+  readonly m: Messages;
   private readonly now: () => number;
   private readonly creds = new Map<string, CredEntry>();
   private inventory: { at: number; devices: DeviceInfo[] } | null = null;
@@ -104,6 +113,7 @@ export class NetScope {
 
   constructor(opts: NetScopeOptions) {
     this.o = opts;
+    this.m = resolveMessages(opts.locale, opts.messages);
     this.now = opts.now ?? Date.now;
     this.pool = opts.pool ?? new RosPool();
     this.gate = new Gate(opts.maxInflight ?? 10, opts.slotWaitMs ?? 30_000);
@@ -169,7 +179,7 @@ export class NetScope {
   private async audited(tool: string, device: string | undefined, command: string | undefined, fn: () => Promise<NetResult>): Promise<NetResult> {
     const t0 = this.now();
     let r: NetResult;
-    try { r = await fn(); } catch (e) { r = fail(`${tool} failed: ${errText(e)}`, errorKindOf(e)); }
+    try { r = await fn(); } catch (e) { r = fail(this.m.failed(tool, errText(e)), errorKindOf(e)); }
     this.o.audit?.({ ts: new Date(t0).toISOString(), tool, ...(device ? { device } : {}), ...(command ? { command } : {}), ok: !r.isError, ...(r.isError && r.errorKind ? { errorKind: r.errorKind } : {}), durationMs: this.now() - t0 });
     return r;
   }
@@ -185,34 +195,34 @@ export class NetScope {
     let cred: DeviceCredentials | undefined;
     try {
       cred = await this.credentialsOf(device.id);
-      if (!cred.user || !cred.secret) return fail(`${tool} failed: device credentials are empty.`, 'config');
+      if (!cred.user || !cred.secret) return fail(this.m.credentialsEmpty(tool), 'config');
       let body: string; let route = ''; let data: unknown;
       if (plan.kind === 'api') {
         const timeout = plan.verb === 'ping' ? ROS_TIMEOUT.ping : plan.verb === 'traceroute' ? ROS_TIMEOUT.traceroute : ROS_TIMEOUT.other;
         const out = await this.runPlan(device, cred, plan, timeout);
-        body = plan.verb === 'traceroute' ? formatTraceroute(out.rows) : formatRosRows(out.rows, plan.apiPath, out.truncated, out.scanned, plan.tail, this.pii());
+        body = plan.verb === 'traceroute' ? formatTraceroute(out.rows, this.m) : formatRosRows(out.rows, plan.apiPath, out.truncated, out.scanned, plan.tail, { ...this.pii(), messages: this.m });
         route = out.route ? `, ${out.route}` : '';
         data = { device: device.id, command: plan.display, truncated: out.truncated, rows: scrubRows(maskRows(out.rows, plan.apiPath, this.pii()), cred) };
       } else {
         const sshPort = device.ssh?.port;
-        if (sshPort === undefined) return fail(`${tool}: SSH port of ${device.name} is not configured, export is unavailable (the port is never guessed). Use print per menu.`, 'config');
-        if (sshPort === null) return fail(`${tool}: SSH of ${device.name} is closed from here, export is unavailable. Use print per menu.`, 'config');
+        if (sshPort === undefined) return fail(this.m.sshNotConfigured(tool, device.name), 'config');
+        if (sshPort === null) return fail(this.m.sshClosed(tool, device.name), 'config');
         const out = await this.perDevice.run(device.id, () => this.gate.run(() => this.ssh({
           host: device.host, port: sshPort, user: cred!.user, deviceId: device.id,
           ...(device.ssh?.keyFile ? { keyFile: device.ssh.keyFile } : { password: cred!.secret }),
           ...(device.ssh?.hostKeySha256 ? { hostKeySha256: device.ssh.hostKeySha256 } : {}),
         }, plan.sshCommand, 40_000)));
-        if (out.code !== 0) return fail(`${tool}: export over SSH failed for ${device.name} (${scrubExact(out.stderr.trim(), secretsOf(cred)) || `exit code ${out.code}`}).`);
+        if (out.code !== 0) return fail(this.m.sshFailed(tool, device.name, sshFailureDetail(out, secretsOf(cred))));
         body = clipExport(out.stdout);
         data = { device: device.id, command: plan.display };
       }
       const text = clip(this.finish(scrubExact(redactText(body), secretsOf(cred))));
-      return { text: `${head}\n${text}\n(${this.now() - started} ms, read-only${route})`, isError: false, action: head, data };
+      return { text: `${head}\n${text}\n${this.m.footer(this.now() - started, route)}`, isError: false, action: head, data };
     } catch (e) {
       const message = scrubExact(errText(e), secretsOf(cred));
       if (e instanceof LoginDeniedError) this.dropCredentials(device.id);
-      const hint = /no such command|bad command name|unknown command/i.test(message) ? ' (this menu/command does not exist on this device model or RouterOS version; it is not a connection problem)' : '';
-      return fail(`${tool} failed [${device.name}]: ${message}${hint}`, errorKindOf(e));
+      const hint = /no such command|bad command name|unknown command/i.test(message) ? this.m.missingCommandHint : '';
+      return fail(this.m.failedOn(tool, device.name, `${message}${hint}`), errorKindOf(e));
     }
   }
 
@@ -226,10 +236,10 @@ export class NetScope {
       const q = typeof args.filter === 'string' ? args.filter.trim().toLowerCase().slice(0, 60) : '';
       const group = typeof args.group === 'string' ? args.group.trim().toLowerCase() : '';
       const rows = all.filter((d) => (!q || `${d.id} ${d.name} ${d.host} ${d.family} ${d.group ?? ''}`.toLowerCase().includes(q)) && (!group || (d.group ?? '').toLowerCase() === group));
-      const lines = rows.slice(0, 120).map((d) => `id=${d.id} | ${d.name} | ${d.host}${d.port ? `:${d.port}` : ''} | ${d.family}${d.group ? ` | group ${d.group}` : ''} | tools: ${familyTools(d.family)}${d.family === 'routeros' || d.family === 'switch' ? ` | export over SSH: ${d.ssh?.port ? `port ${d.ssh.port}` : 'unavailable'}` : ''}`);
+      const lines = rows.slice(0, 120).map((d) => `id=${d.id} | ${d.name} | ${d.host}${portOf(d)} | ${d.family}${d.group ? ` | group ${d.group}` : ''} | tools: ${familyTools(d.family)}${d.family === 'routeros' || d.family === 'switch' ? ` | export over SSH: ${d.ssh?.port ? `port ${d.ssh.port}` : 'unavailable'}` : ''}`);
       return {
-        text: `${rows.length} device(s)${q ? ` matching "${q}"` : ''}:\n${lines.join('\n')}${rows.length > 120 ? '\n… (narrow with filter)' : ''}`, isError: false,
-        data: rows.map((d) => ({ id: d.id, name: d.name, host: d.host, port: d.port, family: d.family, group: d.group ?? null })),
+        text: `${this.m.deviceCount(rows.length, q)}\n${lines.join('\n')}${rows.length > 120 ? `\n${this.m.narrowFilter}` : ''}`, isError: false,
+        data: rows.map((d) => ({ id: d.id, name: d.name, host: d.host, port: apiPortOf(d) ?? d.snmpPort ?? 161, family: d.family, group: d.group ?? null })),
       };
     });
   }
@@ -245,18 +255,18 @@ export class NetScope {
   }
 
   private refused(tool: string, e: unknown, device?: unknown): NetResult {
-    const r = fail(`${tool} refused: ${errText(e)}`, errorKindOf(e));
+    const r = fail(this.m.refused(tool, errText(e)), errorKindOf(e));
     this.o.audit?.({ ts: new Date(this.now()).toISOString(), tool, ...(typeof device === 'string' ? { device: device.slice(0, 64) } : {}), ok: false, errorKind: r.errorKind!, durationMs: 0 });
     return r;
   }
 
   async batch(args: { items?: unknown }): Promise<NetResult> {
     const items = args.items;
-    if (!Array.isArray(items) || !items.length) return fail('mikrotik_batch refused: `items` must contain at least one {device, command}.', 'policy');
-    if (items.length > BATCH_MAX) return fail(`mikrotik_batch refused: at most ${BATCH_MAX} items per call (got ${items.length}).`, 'policy');
+    if (!Array.isArray(items) || !items.length) return fail(this.m.refused('mikrotik_batch', this.m.batchNeedsItems), 'policy');
+    if (items.length > BATCH_MAX) return fail(this.m.refused('mikrotik_batch', this.m.batchTooMany(BATCH_MAX, items.length)), 'policy');
     const t0 = this.now();
     let devices: DeviceInfo[];
-    try { devices = await this.devices(); } catch (e) { return fail(`mikrotik_batch failed: ${errText(e)}`, errorKindOf(e)); }
+    try { devices = await this.devices(); } catch (e) { return fail(this.m.failed('mikrotik_batch', errText(e)), errorKindOf(e)); }
     interface Prepared { index: number; device?: DeviceInfo; plan?: RosPlan; command: string; error?: string }
     const prepared: Prepared[] = (items as Array<{ device?: unknown; command?: unknown }>).map((raw, index) => {
       const command = typeof raw?.command === 'string' ? raw.command : '';
@@ -264,7 +274,7 @@ export class NetScope {
         const plan = planRosCommand(raw?.command);
         this.guardPlan(plan);
         return { index, device: resolveDevice(devices, raw?.device, 'ros'), plan, command };
-      } catch (e) { return { index, command, error: e instanceof PolicyDenied || e instanceof DeviceNotFound ? `refused: ${e.message}` : errText(e) }; }
+      } catch (e) { return { index, command, error: e instanceof PolicyDenied || e instanceof DeviceNotFound ? this.m.refusedItem(errText(e)) : errText(e) }; }
     });
     // Parallel across routers; sequential on one router (one session per router; the per-device queue still applies underneath).
     const groups = new Map<string, Prepared[]>();
@@ -284,10 +294,10 @@ export class NetScope {
       const r = outcome.get(p.index);
       const failed = p.error !== undefined || r?.isError;
       if (failed) bad++; else ok++;
-      const body = p.error !== undefined ? `ERROR ${p.error}` : r!.isError ? `ERROR ${r!.text}` : r!.text;
-      return `### ${p.index + 1}. ${failed ? 'ERROR' : 'ok'} — ${p.device ? p.device.name : '?'}: ${p.command.slice(0, 120)}\n${clip(body, ITEM_LIMIT)}`;
+      const body = p.error !== undefined ? `${this.m.error} ${p.error}` : r!.isError ? `${this.m.error} ${r!.text}` : r!.text;
+      return `### ${p.index + 1}. ${failed ? this.m.error : this.m.ok} — ${p.device ? p.device.name : '?'}: ${p.command.slice(0, 120)}\n${clip(body, ITEM_LIMIT)}`;
     });
-    const text = `[mikrotik_batch] ${ok} ok, ${bad} error(s) of ${prepared.length} items (${this.now() - t0} ms, read-only)\n${clip(blocks.join('\n\n'), TOTAL_LIMIT)}`;
+    const text = `${this.m.batchSummary(ok, bad, prepared.length, this.now() - t0)}\n${clip(blocks.join('\n\n'), TOTAL_LIMIT)}`;
     return { text, isError: ok === 0, ...(ok === 0 ? { errorKind: 'device' as ErrorKind } : {}), action: `mikrotik_batch: ${prepared.length} items, ${groups.size} routers`, data: { ok, errors: bad, total: prepared.length } };
   }
 
@@ -296,14 +306,14 @@ export class NetScope {
   async recipe(args: { recipe?: unknown; device?: unknown; name?: unknown }): Promise<NetResult> {
     const t0 = this.now();
     const recipe = typeof args.recipe === 'string' ? args.recipe.trim().toLowerCase() as Recipe : '' as Recipe;
-    if (!RECIPES.includes(recipe)) return fail(`mikrotik_recipe refused: recipe must be one of ${RECIPES.join(', ')}.`, 'policy');
+    if (!RECIPES.includes(recipe)) return fail(this.m.refused('mikrotik_recipe', this.m.recipeUnknown(RECIPES.join(', '))), 'policy');
     return this.audited('mikrotik_recipe', typeof args.device === 'string' ? args.device : undefined, recipe, async () => {
       try {
         const all = await this.devices();
         const refs = Array.isArray(args.device) ? args.device : args.device !== undefined && args.device !== '' ? [args.device] : [];
         if (refs.length > MAX_RECIPE_DEVICES) throw new PolicyDenied(`at most ${MAX_RECIPE_DEVICES} devices per recipe.`);
         const picked = () => refs.map((r) => resolveDevice(all, r, 'ros'));
-        const finish = (body: string, action: string, data?: unknown): NetResult => ({ text: `[mikrotik_recipe] ${recipe}\n${clip(body, 30_000)}\n(${this.now() - t0} ms, read-only)`, isError: false, action, ...(data !== undefined ? { data } : {}) });
+        const finish = (body: string, action: string, data?: unknown): NetResult => ({ text: `[mikrotik_recipe] ${recipe}\n${clip(body, 30_000)}\n${this.m.footer(this.now() - t0, '')}`, isError: false, action, ...(data !== undefined ? { data } : {}) });
         const ctx: RecipeCtx = { creds: new Map() };
         if (recipe === 'pppoe-lookup') {
           const name = typeof args.name === 'string' ? args.name.trim() : '';
@@ -312,9 +322,9 @@ export class NetScope {
           const targets = refs.length ? picked() : all.filter((d) => d.family === 'routeros').slice(0, 40);
           const found: string[] = []; const miss: string[] = [];
           await Promise.all(targets.map(async (d) => {
-            try { const r = await this.pppoeLookup(ctx, d, name); if (r) found.push(`## ${d.name}\n${r}`); else miss.push(d.name); } catch (e) { miss.push(`${d.name} (ERROR ${errText(e)})`); }
+            try { const r = await this.pppoeLookup(ctx, d, name); if (r) found.push(`## ${d.name}\n${r}`); else miss.push(d.name); } catch (e) { miss.push(`${d.name} (${this.m.error} ${errText(e)})`); }
           }));
-          return finish(`${found.join('\n') || `"${name}" not found on ${targets.length} router(s).`}\n(checked without a hit: ${miss.length ? miss.join(', ') : '-'})`, `mikrotik_recipe pppoe-lookup`, { found: found.length, checked: targets.length });
+          return finish(`${found.join('\n') || this.m.recipeNotFound(name, targets.length)}\n${this.m.recipeChecked(miss.length ? miss.join(', ') : '-')}`, `mikrotik_recipe pppoe-lookup`, { found: found.length, checked: targets.length });
         }
         const targets = picked();
         if (!targets.length) throw new PolicyDenied('`device` is required for this recipe.');
@@ -324,11 +334,11 @@ export class NetScope {
           try {
             if (recipe === 'health') body = await this.health(ctx, d);
             else { const r = await this.neighborsMap(ctx, d, all); edges += r.edges; body = r.text; }
-          } catch (e) { body = `ERROR ${errText(e)}`; }
+          } catch (e) { body = `${this.m.error} ${errText(e)}`; }
           blocks[i] = `## ${d.name}\n${body}`;
         }));
-        return finish(`${blocks.join('\n')}${recipe === 'neighbors-map' ? `\n(total ${edges} edges)` : ''}`, `mikrotik_recipe ${recipe}: ${targets.map((d) => d.name).join(', ').slice(0, 80)}`);
-      } catch (e) { return e instanceof PolicyDenied || e instanceof DeviceNotFound ? fail(`mikrotik_recipe refused: ${e.message}`, errorKindOf(e)) : fail(`mikrotik_recipe failed: ${errText(e)}`, errorKindOf(e)); }
+        return finish(`${blocks.join('\n')}${recipe === 'neighbors-map' ? `\n${this.m.recipeEdges(edges)}` : ''}`, `mikrotik_recipe ${recipe}: ${targets.map((d) => d.name).join(', ').slice(0, 80)}`);
+      } catch (e) { return e instanceof PolicyDenied || e instanceof DeviceNotFound ? fail(this.m.refused('mikrotik_recipe', errText(e)), errorKindOf(e)) : fail(this.m.failed('mikrotik_recipe', errText(e)), errorKindOf(e)); }
     });
   }
 
@@ -348,27 +358,34 @@ export class NetScope {
       }
     } catch (e) { return { rows: [], error: errText(e) }; }
   }
-  private rows(ctx: RecipeCtx, device: DeviceInfo, command: string) {
-    const plan = planRosCommand(command);
-    if (plan.kind !== 'api') throw new PolicyDenied('recipes only use API commands.');
-    return this.section(ctx, device, plan);
+
+  /** One recipe step. A refused or failing step becomes an error line, so one bad name never cancels the other sections. */
+  private async rows(ctx: RecipeCtx, device: DeviceInfo, command: string): Promise<{ rows: RosRow[]; error?: string; truncated?: boolean }> {
+    try {
+      const plan = planRosCommand(command);
+      if (plan.kind !== 'api') throw new PolicyDenied('recipes only use API commands.');
+      return await this.section(ctx, device, plan);
+    } catch (e) { return { rows: [], error: errText(e) }; }
   }
 
   private async health(ctx: RecipeCtx, d: DeviceInfo): Promise<string> {
     const [res, hl, eth] = await Promise.all([this.rows(ctx, d, '/system resource print'), this.rows(ctx, d, '/system health print'), this.rows(ctx, d, '/interface ethernet print')]);
     const out: string[] = [];
     const r = res.rows[0];
-    out.push(r ? `resource: ${pick(r, ['board-name', 'version', 'uptime', 'cpu-load', 'cpu-count', 'free-memory', 'total-memory', 'free-hdd-space'])}` : `resource: ERROR ${res.error}`);
+    out.push(r ? `resource: ${pick(r, ['board-name', 'version', 'uptime', 'cpu-load', 'cpu-count', 'free-memory', 'total-memory', 'free-hdd-space'])}` : `resource: ${this.m.error} ${res.error}`);
     if (hl.rows.length) out.push(`health: ${hl.rows.map((h) => (h.name !== undefined ? `${h.name}=${h.value}${h.type ? h.type : ''}` : pick(h, Object.keys(h)))).join(' ')}`);
-    else if (hl.error && !/no such command|not found|unknown/i.test(hl.error)) out.push(`health: ERROR ${hl.error}`);
+    else if (hl.error && !/no such command|not found|unknown/i.test(hl.error)) out.push(`health: ${this.m.error} ${hl.error}`);
     const sfp = eth.rows.filter((e) => /^sfp/i.test(e.name || '') && e.running === 'true').slice(0, 6);
     const down = eth.rows.filter((e) => e.running === 'false' && e.disabled !== 'true').map((e) => e.name);
-    if (eth.error) out.push(`interface: ERROR ${eth.error}`);
+    if (eth.error) out.push(`interface: ${this.m.error} ${eth.error}`);
     else out.push(`interface: ${atLeast(eth.rows.length, eth.truncated)} ethernet, ${down.length} down${down.length ? ` (${down.slice(0, 12).join(', ')})` : ''}`);
-    for (const e of sfp) {
-      const m = await this.rows(ctx, d, `/interface ethernet monitor ${e.name} once`);
-      out.push(`sfp ${e.name}: ${m.rows[0] ? pick(m.rows[0], ['status', 'rate', 'sfp-module-present', 'sfp-rx-power', 'sfp-tx-power', 'sfp-temperature', 'sfp-supply-voltage']) : `ERROR ${m.error}`}`);
-    }
+    // One monitor per SFP, each isolated. The router's own id (`*N`) is the most robust selector; otherwise the name is
+    // quoted, because names such as "sfp+ 1" contain a space.
+    const monitored = await Promise.all(sfp.map((e) => this.rows(ctx, d, `/interface ethernet monitor ${monitorRef(e)} once`)));
+    sfp.forEach((e, i) => {
+      const m = monitored[i]!;
+      out.push(`sfp ${e.name}: ${m.rows[0] ? pick(m.rows[0], ['status', 'rate', 'sfp-module-present', 'sfp-rx-power', 'sfp-tx-power', 'sfp-temperature', 'sfp-supply-voltage']) : `${this.m.error} ${m.error ?? '-'}`}`);
+    });
     return out.join('\n');
   }
 
@@ -386,13 +403,13 @@ export class NetScope {
       edges++;
       out.push(`edge ${d.name}[${n.interface || '?'}] -> ${id}${ip ? ` ${ip}` : ''}${n.platform ? ` ${n.platform}` : ''}${n.board ? `/${n.board}` : ''}${n.version ? ` ${n.version}` : ''}${match ? ` = known ${match.name}` : ' (not in inventory)'}`);
     }
-    if (nb.error) out.push(`neighbor: ERROR ${nb.error}`);
+    if (nb.error) out.push(`neighbor: ${this.m.error} ${nb.error}`);
     const perIf = new Map<string, number>();
     for (const a of arp.rows) if (a.interface) perIf.set(a.interface, (perIf.get(a.interface) || 0) + 1);
-    if (arp.error) out.push(`arp: ERROR ${arp.error}`);
+    if (arp.error) out.push(`arp: ${this.m.error} ${arp.error}`);
     else out.push(`arp: ${atLeast(arp.rows.length, arp.truncated)} entries; ${[...perIf].sort((a, b) => b[1] - a[1]).slice(0, 12).map(([i, c]) => `${i}=${c}`).join(' ') || '-'}`);
     const downs = ifs.rows.filter((i) => i.running === 'false' && i.disabled !== 'true' && /ether|sfp|bond|vlan/.test(i.type || '')).map((i) => i.name);
-    if (ifs.error) out.push(`interface: ERROR ${ifs.error}`);
+    if (ifs.error) out.push(`interface: ${this.m.error} ${ifs.error}`);
     else out.push(`interface: ${atLeast(ifs.rows.length, ifs.truncated)} total${ifs.truncated ? ' (down list may be incomplete)' : ''}, down: ${downs.length ? downs.slice(0, 15).join(', ') : '-'}`);
     return { text: out.join('\n'), edges };
   }
@@ -406,11 +423,11 @@ export class NetScope {
     if (!act.rows.length && !sec.rows.length && !act.error && !sec.error) return null;
     const out: string[] = [];
     for (const a of act.rows) out.push(`active: ${pick(a, ['name', 'service', 'caller-id', 'address', 'uptime', 'encoding', 'session-id'])}`);
-    if (!act.rows.length) out.push(act.error ? `active: ERROR ${act.error}` : 'active: no session (offline)');
+    if (!act.rows.length) out.push(act.error ? `active: ${this.m.error} ${act.error}` : 'active: no session (offline)');
     for (const s of sec.rows) out.push(`secret: ${pick(s, ['name', 'service', 'profile', 'remote-address', 'local-address', 'disabled', 'last-logged-out', 'last-caller-id', 'comment'])}`);
-    if (!sec.rows.length) out.push(sec.error ? `secret: ERROR ${sec.error}` : 'secret: none');
+    if (!sec.rows.length) out.push(sec.error ? `secret: ${this.m.error} ${sec.error}` : 'secret: none');
     for (const i of ifc.rows) out.push(`interface: ${pick(i, ['name', 'type', 'running', 'disabled', 'last-link-up-time', 'rx-byte', 'tx-byte', 'rx-error', 'tx-error', 'rx-drop', 'tx-drop'])}`);
-    if (!ifc.rows.length) out.push(ifc.error ? `interface: ERROR ${ifc.error}` : 'interface: no dynamic <pppoe-…> interface (session offline)');
+    if (!ifc.rows.length) out.push(ifc.error ? `interface: ${this.m.error} ${ifc.error}` : 'interface: no dynamic <pppoe-…> interface (session offline)');
     return out.join('\n');
   }
 
@@ -443,7 +460,7 @@ export class NetScope {
       if (kind === 'ping') { count = intArg(args.count, 1, 10, 4, 'count'); size = args.size === undefined ? undefined : intArg(args.size, 28, 1400, 56, 'size'); } else hops = intArg(args.max_hops, 1, 20, 15, 'max_hops');
     } catch (e) { return this.refused(tool, e, args.from); }
     const gate = this.throttle(`${kind}|${from.toLowerCase()}|${target}`);
-    if (gate) return fail(`${tool} refused: ${gate}`, 'busy');
+    if (gate) return fail(this.m.refused(tool, gate), 'busy');
     return this.audited(tool, from, `${kind} from ${from}`, async () => {
       const t0 = this.now();
       try {
@@ -454,13 +471,13 @@ export class NetScope {
             : ['-n', '-m', String(hops), target];
           const run = this.o.local ?? execLocal;
           const out = await this.gate.run(() => this.localGate.run(() => run(kind === 'ping' ? 'ping' : 'tracepath', argv, kind === 'ping' ? count * 3_000 + 5_000 : 45_000)));
-          if (out.code > 1 && !out.stdout.trim()) return fail(`${tool} failed from local host: ${out.stderr.trim() || `exit code ${out.code}`}`);
-          return { text: `[local] ${kind} ${target}\n${clip(out.stdout)}\n(${this.now() - t0} ms, read-only)`, isError: false, action: `${kind} local → ${target}` };
+          if (out.code > 1 && !out.stdout.trim()) return fail(this.m.failed(`${tool} (local host)`, out.stderr.trim() || `exit code ${out.code}`));
+          return { text: `[local] ${kind} ${target}\n${clip(out.stdout)}\n${this.m.footer(this.now() - t0, '')}`, isError: false, action: `${kind} local → ${target}` };
         }
         const device = resolveDevice(await this.devices(), from, 'ros');
         const plan = planRosCommand(kind === 'ping' ? `ping ${target} count=${count}${size ? ` size=${size}` : ''}` : `/tool traceroute ${target} count=1 max-hops=${hops}`);
         return await this.exec(device, plan, tool);
-      } catch (e) { return e instanceof PolicyDenied || e instanceof DeviceNotFound ? fail(`${tool} refused: ${e.message}`, errorKindOf(e)) : fail(`${tool} failed: ${errText(e).slice(0, 300)}`, errorKindOf(e)); }
+      } catch (e) { return e instanceof PolicyDenied || e instanceof DeviceNotFound ? fail(this.m.refused(tool, errText(e)), errorKindOf(e)) : fail(this.m.failed(tool, errText(e).slice(0, 300)), errorKindOf(e)); }
     });
   }
   ping(args: { from?: unknown; target?: unknown; count?: unknown; size?: unknown }): Promise<NetResult> { return this.probe('ping', args); }
@@ -480,8 +497,8 @@ export class NetScope {
         const run = this.o.snmp ?? defaultSnmp;
         const rows = await this.gate.run(() => run({ host: device.host, port: device.snmpPort ?? 161, community: cred!.community! }, plan.walk ? 'walk' : 'get', [plan.oid], plan.limit));
         const text = clip(this.finish(scrubExact(redactText(formatSnmp(rows)), secretsOf(cred))));
-        return { text: `[${device.name}] snmp ${plan.walk ? 'walk' : 'get'} ${nameFor(plan.oid)}\n${text || '(empty)'}\n(${this.now() - t0} ms, read-only, SNMP v2c)`, isError: false, action: `snmp ${device.name} ${nameFor(plan.oid)}`, data: { device: device.id, oid: plan.oid, count: rows.length } };
-      } catch (e) { return fail(`snmp_get failed [${device.name}]: ${scrubExact(errText(e), secretsOf(cred)).slice(0, 300)}`, errorKindOf(e)); }
+        return { text: `[${device.name}] snmp ${plan.walk ? 'walk' : 'get'} ${nameFor(plan.oid)}\n${text || '(empty)'}\n${this.m.footer(this.now() - t0, ', SNMP v2c')}`, isError: false, action: `snmp ${device.name} ${nameFor(plan.oid)}`, data: { device: device.id, oid: plan.oid, count: rows.length } };
+      } catch (e) { return fail(this.m.failedOn('snmp_get', device.name, scrubExact(errText(e), secretsOf(cred)).slice(0, 300)), errorKindOf(e)); }
     });
   }
 
@@ -532,8 +549,8 @@ export class NetScope {
           const o = byIdx(oper); const s = byIdx(speed);
           text = names.map((r) => { const i = r.oid.split('.').pop()!; return `${i} ${r.value} status=${({ 1: 'up', 2: 'down' } as Record<string, string>)[o.get(i) || ''] || o.get(i) || '?'} speed=${s.get(i) || '?'}Mbps`; }).join('\n');
         }
-        return { text: `[${dev.name}] switch ${command} (SNMP)\n${clip(this.finish(scrubExact(redactText(text), secretsOf(cred))))}\n(${this.now() - t0} ms, read-only)`, isError: false, action: `switch ${dev.name} ${command}` };
-      } catch (e) { return fail(`switch_read failed [${dev.name}]: ${scrubExact(errText(e), secretsOf(cred)).slice(0, 300)}`, errorKindOf(e)); }
+        return { text: `[${dev.name}] switch ${command} (SNMP)\n${clip(this.finish(scrubExact(redactText(text), secretsOf(cred))))}\n${this.m.footer(this.now() - t0, '')}`, isError: false, action: `switch ${dev.name} ${command}` };
+      } catch (e) { return fail(this.m.failedOn('switch_read', dev.name, scrubExact(errText(e), secretsOf(cred)).slice(0, 300)), errorKindOf(e)); }
     });
   }
 
@@ -541,7 +558,7 @@ export class NetScope {
 
   attachSnapshot(handler: (args: Record<string, unknown>) => Promise<NetResult>): void { this.snapshotHandler = handler; }
   async snapshot(args: Record<string, unknown>): Promise<NetResult> {
-    if (!this.snapshotHandler) return fail('mikrotik_snapshot is not enabled: start the server with --snapshot <file>. Use mikrotik_read / mikrotik_recipe (live).', 'config');
+    if (!this.snapshotHandler) return fail(this.m.snapshotDisabled, 'config');
     return this.audited('mikrotik_snapshot', typeof args.device === 'string' ? args.device : undefined, undefined, () => this.snapshotHandler!(args));
   }
 }
@@ -549,6 +566,26 @@ export class NetScope {
 // ───────────── helpers ─────────────
 
 interface RecipeCtx { creds: Map<string, DeviceCredentials> }
+
+/** Selector for `monitor`: the router's `.id` when it looks like one, else the quoted name (double quotes are not valid inside names we accept). */
+const monitorRef = (row: RosRow): string => (/^\*[0-9A-Fa-f]{1,8}$/.test(row['.id'] ?? '') ? row['.id']! : `"${(row.name ?? '').replace(/"/g, '')}"`);
+/** API port shown to the operator; SNMP-only and SwOS devices have no RouterOS API. */
+const apiPortOf = (d: DeviceInfo): number | undefined => (d.family === 'routeros' || d.family === 'switch' ? d.port : undefined);
+const portOf = (d: DeviceInfo): string => {
+  const api = apiPortOf(d);
+  if (api) return `:${api}`;
+  return d.family === 'swos' || d.family === 'snmp' ? ` (snmp:${d.snmpPort ?? 161})` : '';
+};
+
+/** Friendly reason for a failed export: a missing client, a refused password, a changed host key… */
+function sshFailureDetail(out: { code: number; stderr: string }, secrets: string[]): string {
+  const raw = scrubExact(out.stderr.trim(), secrets);
+  if (/ENOENT|not found/i.test(raw)) return 'the OpenSSH client (ssh) is not installed on the MCP host';
+  if (/permission denied/i.test(raw)) return 'SSH login was refused: wrong user/password, or the router user has no ssh policy; a key file (ssh.key_file) is preferred';
+  if (/host key|REMOTE HOST IDENTIFICATION|pinned/i.test(raw)) return raw || 'SSH host key check failed';
+  if (/timed? ?out|connection (refused|reset|closed)|no route/i.test(raw)) return `${raw}; check ssh.port and that the router allows SSH from this host`;
+  return raw || `exit code ${out.code}`;
+}
 
 const norm = (s: string | undefined) => (s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
 /** The table is cut at 300 rows: a count reported by a recipe is only a lower bound, so say so. */

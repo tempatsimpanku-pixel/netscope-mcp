@@ -253,7 +253,8 @@ export function planRosCommand(text: unknown): RosPlan {
     const positional = rest.filter((t) => t !== 'once');
     if (positional.length > 1) deny('monitor takes a single name/number.');
     if (positional[0]) {
-      if (positional[0].includes('=') || !/^[A-Za-z0-9_.:*-]+$/.test(positional[0])) deny('invalid monitor name/number.');
+      // Interface names may contain "+" and spaces ("sfp+ 1"): such a name must be double-quoted so it stays one token.
+      if (positional[0].includes('=') || !/^[A-Za-z0-9_.:*+-](?:[A-Za-z0-9_.:*+ -]*[A-Za-z0-9_.:*+-])?$/.test(positional[0])) deny('invalid monitor name/number (quote names that contain spaces, e.g. "sfp+ 1").');
       words.unshift(`=numbers=${positional[0]}`);
     }
     return { kind: 'api', verb: 'monitor', path, apiPath, words, display };

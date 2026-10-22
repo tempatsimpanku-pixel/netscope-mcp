@@ -271,6 +271,41 @@ describe('mikrotik_recipe', () => {
     expect(out.text).toMatch(/cpu-load=5/); expect(out.text).toMatch(/sfp sfp1: .*sfp-rx-power=-3.1/); expect(out.text).toMatch(/1 down \(sfp2\)/);
     expect(log.filter((l) => l.startsWith('/interface/ethernet/monitor'))).toHaveLength(1);
   });
+  it('health: interface names with spaces/"+" are selected by id or quoted, and a bad name never cancels the other sections', async () => {
+    const log: string[] = [];
+    const s = mk({ transport: stub({
+      '/system/resource/print': [{ 'board-name': 'CCR-LAB', version: '7.21', uptime: '1d', 'cpu-load': '5' }],
+      '/interface/ethernet/print': [
+        { '.id': '*1', name: 'sfp+ 1', running: 'true' }, { name: 'sfp+ 2', running: 'true' }, { name: 'sfp(3)', running: 'true' }, { name: 'ether1', running: 'true' },
+      ],
+      '/interface/ethernet/monitor': [{ status: 'link-ok', 'sfp-rx-power': '-2.0' }],
+    }, log) });
+    const out = await s.recipe({ recipe: 'health', device: 'rtr-core-1' });
+    expect(out.isError).toBe(false);
+    expect(log).toContain('/interface/ethernet/monitor =numbers=*1 =once=');
+    expect(log).toContain('/interface/ethernet/monitor =numbers=sfp+ 2 =once=');
+    expect(out.text).toMatch(/sfp sfp\+ 1: .*sfp-rx-power=-2.0/); expect(out.text).toMatch(/sfp sfp\+ 2: .*link-ok/);
+    expect(out.text).toMatch(/sfp sfp\(3\): ERROR .*not allowed/); expect(out.text).toMatch(/resource: board-name=CCR-LAB/); expect(out.text).toMatch(/interface: 4 ethernet/);
+  });
+  it('health against the wire: a spaced SFP name arrives as ONE `=numbers=` word', async () => {
+    const seen: string[][] = [];
+    const srv = await live({ handlers: {
+      '/system/resource/print': [{ 'board-name': 'CCR-LAB', 'cpu-load': '1' }],
+      '/interface/ethernet/print': [{ name: 'sfp+ 1', running: 'true' }],
+      '/interface/ethernet/monitor': (words) => { seen.push(words); return [{ status: 'link-ok' }]; },
+    } });
+    const s = mk({ devices: [onPort(srv.port)], allowInsecure: true });
+    const out = await s.recipe({ recipe: 'health', device: 'rtr-core-1' });
+    expect(out.text).toMatch(/sfp sfp\+ 1: status=link-ok/);
+    expect(seen[0]).toEqual(['/interface/ethernet/monitor', '=numbers=sfp+ 1', '=once=']);
+  });
+  it('a monitor command with an unquoted spaced name is still refused, with a hint to quote', async () => {
+    const s = mk({ transport: stub() });
+    const r = await s.read({ device: 'rtr-core-1', command: '/interface ethernet monitor sfp+ 1 once' });
+    expect(r.isError).toBe(true); expect(r.text).toMatch(/single name/);
+    const ok = await s.read({ device: 'rtr-core-1', command: '/interface ethernet monitor "sfp+ 1" once' });
+    expect(ok.isError).toBe(false);
+  });
   it('pppoe-lookup: strict name validation, safe secret columns only', async () => {
     const log: string[] = [];
     const s = mk({ transport: stub({
@@ -463,5 +498,64 @@ describe('a real pool behind the facade', () => {
     const s = mk({ devices: [onPort(srv.port)], allowInsecure: true, pool });
     for (let i = 0; i < 3; i++) await s.read({ device: 'rtr-core-1', command: '/system resource print' });
     expect(pool.stats.logins).toBe(1); expect(srv.st.logins).toBe(1);
+  });
+});
+
+describe('policy text is not redacted; locale', () => {
+  it('our own refusal explanation stays readable (no [redacted] inside the policy sentence)', async () => {
+    const s = mk({ transport: stub() });
+    const r = await s.read({ device: 'rtr-core-1', command: '/system scheduler print' });
+    expect(r.isError).toBe(true); expect(r.text).toContain('(secrets, endless stream, or file writes)'); expect(r.text).not.toMatch(/\[redacted\]/);
+    const list = await s.read({ device: 'rtr-core-1', command: '/ppp aaa-x print' });
+    expect(list.text).toContain('/ppp secret'); expect(list.text).not.toMatch(/\[redacted\]/);
+  });
+  it('key=value pairs echoed by the caller are still masked in the refusal', async () => {
+    const s = mk({ transport: stub() });
+    const r = await s.read({ device: 'rtr-core-1', command: '/ip address print password=Zq63Syn6vTok' });
+    expect(r.isError).toBe(true); expect(r.text).not.toContain('Zq63Syn6vTok');
+  });
+  it('router-originated error text is still scrubbed', async () => {
+    const s = mk({ transport: stub({ '/system/resource/print': new Error('boom password=LAB-PASSWORD-ONE secret LAB-COMMUNITY-ONE') }) });
+    const r = await s.read({ device: 'rtr-core-1', command: '/system resource print' });
+    expect(r.isError).toBe(true); expect(r.text).not.toMatch(/LAB-PASSWORD-ONE|LAB-COMMUNITY-ONE/);
+  });
+  it('locale en is the default and byte-identical in the frame', async () => {
+    const s = mk({ transport: stub() });
+    expect((await s.read({ device: 'rtr-core-1', command: '/system reboot' })).text).toMatch(/^mikrotik_read refused: /);
+    expect((await s.read({ device: 'rtr-core-1', command: '/system resource print' })).text).toMatch(/\(\d+ ms, read-only\)$/);
+    expect((await s.batch({ items: [] })).text).toMatch(/^mikrotik_batch refused: /);
+  });
+  it('locale id translates the frame (refused/failed/ERROR/footer/no rows/batch/recipe) and leaves router output alone', async () => {
+    const s = mk({ locale: 'id', transport: stub({ '/ip/address/print': [], '/system/resource/print': [{ 'cpu-load': '3' }], '/ppp/active/print': new Error('boom') }) });
+    expect((await s.read({ device: 'rtr-core-1', command: '/system reboot' })).text).toMatch(/^mikrotik_read ditolak: /);
+    expect((await s.read({ device: 'rtr-core-1', command: '/ip address print' })).text).toMatch(/\(tidak ada baris\)\n\(\d+ ms, hanya baca\)$/);
+    const failed = await s.read({ device: 'rtr-core-1', command: '/ppp active print' });
+    expect(failed.text).toMatch(/^mikrotik_read gagal \[rtr-core-1\]: boom/);
+    const batch = await s.batch({ items: [{ device: 'rtr-core-1', command: '/system resource print' }, { device: 'rtr-core-1', command: '/system reboot' }] });
+    expect(batch.text).toMatch(/1 ok, 1 galat dari 2 item/); expect(batch.text).toMatch(/GALAT ditolak: /); expect(batch.text).toContain('cpu-load=3');
+    expect((await s.batch({ items: [] })).text).toMatch(/^mikrotik_batch ditolak: /);
+    const rec = await s.recipe({ recipe: 'pppoe-lookup', name: 'nobody', device: 'rtr-core-1' });
+    expect(rec.text).toMatch(/GALAT boom|diperiksa tanpa hasil/);
+    expect((await s.listDevices({})).text).toMatch(/^6 perangkat:/);
+    expect((await s.snapshot({})).text).toMatch(/tidak aktif/);
+  });
+  it('an injected dictionary overrides single sentences on top of the locale', async () => {
+    const s = mk({ locale: 'id', messages: { error: 'KO', footer: (ms) => `<${ms}>` }, transport: stub() });
+    expect((await s.read({ device: 'rtr-core-1', command: '/system resource print' })).text).toMatch(/<\d+>$/);
+    expect((await s.batch({ items: [{ device: 'rtr-core-1', command: '/system reboot' }] })).text).toContain('KO ditolak');
+  });
+  it('an unknown locale is rejected at construction', () => {
+    expect(() => mk({ locale: 'xx' as 'en' })).toThrow(/unknown locale/);
+  });
+  it('list_devices: SNMP-only/SwOS devices show the SNMP port, API devices the API port', async () => {
+    const t = (await mk().listDevices({})).text;
+    expect(t).toMatch(/rtr-core-1 \| 192\.0\.2\.10:8729 \|/); expect(t).toMatch(/sw-css-1 \| 198\.51\.100\.22 \(snmp:161\) \|/); expect(t).toMatch(/ap-snmp-1 \| 198\.51\.100\.23 \(snmp:161\) \|/);
+    expect(t).not.toMatch(/sw-css-1 \| 198\.51\.100\.22:8729/);
+  });
+  it('export over SSH: friendly errors for a missing client and a refused password', async () => {
+    const missing = mk({ ssh: async () => ({ code: 255, stdout: '', stderr: 'ENOENT: ssh not found' }) });
+    expect((await missing.read({ device: 'rtr-core-1', command: '/ip address export hide-sensitive' })).text).toMatch(/OpenSSH client \(ssh\) is not installed/);
+    const denied = mk({ ssh: async () => ({ code: 255, stdout: '', stderr: 'Permission denied, please try again.' }) });
+    expect((await denied.read({ device: 'rtr-core-1', command: '/ip address export hide-sensitive' })).text).toMatch(/SSH login was refused.*key file/);
   });
 });

@@ -50,6 +50,13 @@ describe('parseConfig', () => {
     expect(c.routers[0]!.device).toMatchObject({ transport: 'api', port: 8728 }); expect(c.routers[0]!.device.tls).toBeUndefined(); expect(c.warnings[0]).toMatch(/plain-text API/);
     expect(parseConfig(`settings: { allow_insecure: true }\n${basic('transport: api\n    port: 18728')}`, { env: ENV }).routers[0]!.device.port).toBe(18728);
   });
+  it('warning for the plain API names the real port; settings.locale defaults to en and rejects unknown values', () => {
+    expect(parseConfig(`settings: { allow_insecure: true }\n${basic('transport: api\n    port: 18728')}`, { env: ENV }).warnings[0]).toMatch(/port 18728/);
+    expect(parseConfig(`settings: { allow_insecure: true }\n${basic('transport: api')}`, { env: ENV }).warnings[0]).toMatch(/port 8728/);
+    expect(parseConfig(basic(), { env: ENV }).settings.locale).toBe('en');
+    expect(parseConfig(`settings: { locale: id }\n${basic()}`, { env: ENV }).settings.locale).toBe('id');
+    expect(err(`settings: { locale: fr }\n${basic()}`)).toMatch(/locale/);
+  });
   it('defaults.transport is honoured and still guarded', () => {
     expect(err(`defaults: { transport: api }\n${basic()}`)).toMatch(/allow_insecure/);
   });

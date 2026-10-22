@@ -219,3 +219,12 @@ describe('mikrotik_snapshot tool', () => {
     expect(r.hits).toHaveLength(1); expect(r.more).toBeGreaterThan(0);
   });
 });
+
+describe('snapshot frame in Indonesian', () => {
+  it('uses the translated sentences for the empty store and a refusal', async () => {
+    const store = new SnapshotStore(':memory:');
+    const sc = scope(async () => ({ rows: [], truncated: false }), { locale: 'id' });
+    expect((await snapshotTool(sc, store, {})).text).toMatch(/belum ada snapshot/);
+    store.close(); sc.close();
+  });
+});

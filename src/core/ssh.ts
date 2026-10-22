@@ -9,10 +9,32 @@ import type { SshOutcome, SshRunner, SshTarget } from './types.js';
  *
  * Host keys are ALWAYS checked: either pinned by SHA-256 fingerprint (the key is fetched with ssh-keyscan, compared, and only then
  * written to a per-device known_hosts file used with StrictHostKeyChecking=yes), or trust-on-first-use (`accept-new`) in the state
- * directory. `StrictHostKeyChecking=no` and `/dev/null` known_hosts never appear. Passwords travel in the SSHPASS environment
- * variable of the child (never argv); a private key file is preferred. */
+ * directory. `StrictHostKeyChecking=no` and `/dev/null` known_hosts never appear.
+ *
+ * Authentication: a private key file is preferred. Otherwise the password is handed to OpenSSH through `SSH_ASKPASS` (OpenSSH >= 8.4,
+ * `SSH_ASKPASS_REQUIRE=force`): a tiny fixed helper script in the private state directory prints the password from the environment
+ * of the ssh child, and only when the prompt asks for a password. The password never appears in argv (so not in /proc/<pid>/cmdline),
+ * never on disk, and no `sshpass` binary is needed. The environment of a process is readable only by its own user (and root). */
 
 export const SSH_PERSIST_S = 45;
+/** Name of the environment variable that carries the password to the askpass helper (child process only). */
+export const ASKPASS_ENV = 'NETSCOPE_SSH_PASSWORD';
+const ASKPASS_SCRIPT = `#!/bin/sh
+# netscope-mcp askpass helper: answers a password prompt only, from the environment of the ssh child. Holds no secret itself.
+case "$1" in
+  *[Pp]assword*) [ -n "$${ASKPASS_ENV}" ] || exit 1; printf '%s\\n' "$${ASKPASS_ENV}" ;;
+  *) exit 1 ;;
+esac
+`;
+/** Create (or refresh) the helper inside the private state directory; returns its path. */
+export function ensureAskpass(dir: string): string {
+  const file = path.join(dir, 'askpass.sh');
+  let current = '';
+  try { current = fs.readFileSync(file, 'utf8'); } catch { /* not there yet */ }
+  if (current !== ASKPASS_SCRIPT) { fs.rmSync(file, { force: true }); fs.writeFileSync(file, ASKPASS_SCRIPT, { mode: 0o700 }); }
+  fs.chmodSync(file, 0o700);
+  return file;
+}
 export interface SshOptions {
   /** Directory (mode 0700) holding known_hosts, pinned host keys and control sockets. */
   stateDir?: string;
@@ -56,7 +78,8 @@ export function buildSshArgs(t: SshTarget, remote: string, o: { knownHosts: stri
 const run = (file: string, args: string[], env: NodeJS.ProcessEnv, timeoutMs: number): Promise<SshOutcome> => new Promise((resolve) => {
   execFile(file, args, { timeout: timeoutMs, maxBuffer: 4_000_000, env, windowsHide: true }, (error, stdout, stderr) => {
     const code = error ? (typeof (error as { code?: unknown }).code === 'number' ? (error as { code: number }).code : 255) : 0;
-    resolve({ code, stdout: String(stdout || ''), stderr: error && (error as { killed?: boolean }).killed ? 'timed out' : String(stderr || '').slice(0, 300) });
+    const missing = error && (error as { code?: unknown }).code === 'ENOENT';
+    resolve({ code, stdout: String(stdout || ''), stderr: missing ? `ENOENT: ${file} not found` : error && (error as { killed?: boolean }).killed ? 'timed out' : String(stderr || '').slice(0, 300) });
   });
 });
 
@@ -84,7 +107,11 @@ export function createSshRunner(opts: SshOptions = {}): SshRunner {
     const args = buildSshArgs(t, remote, { knownHosts, strict, controlDir: ctl, persistSeconds: persist, connectTimeoutS: connectS });
     if (t.keyFile) return exec('ssh', args, env, timeoutMs);
     if (!t.password) return { code: 255, stdout: '', stderr: 'no SSH credentials (configure a key file or a password).' };
-    env.SSHPASS = t.password;
-    return exec('sshpass', ['-e', 'ssh', ...args], env, timeoutMs);
+    // Password mode: no controlling terminal is needed, OpenSSH asks the helper (SSH_ASKPASS_REQUIRE=force, OpenSSH >= 8.4).
+    env.SSH_ASKPASS = ensureAskpass(dir);
+    env.SSH_ASKPASS_REQUIRE = 'force';
+    env.DISPLAY = env.DISPLAY || 'netscope:0';
+    env[ASKPASS_ENV] = t.password;
+    return exec('ssh', args, env, timeoutMs);
   };
 }

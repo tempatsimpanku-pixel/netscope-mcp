@@ -359,7 +359,7 @@ export async function snapshotTool(scope: NetScope, store: SnapshotStore, args: 
   const fail = (text: string, errorKind: 'policy' | 'internal' = 'internal'): NetResult => ({ text, isError: true, errorKind });
   try {
     const rows = store.all();
-    if (!rows.length) return { text: '[mikrotik_snapshot] no snapshot yet (the worker just started, or every router failed). Use mikrotik_read / mikrotik_recipe (live).', isError: false, action: 'mikrotik_snapshot empty' };
+    if (!rows.length) return { text: scope.m.noSnapshotYet, isError: false, action: 'mikrotik_snapshot empty' };
     const limitRaw = Number(args.limit);
     const limit = Math.min(200, Math.max(1, Math.floor(Number.isFinite(limitRaw) && limitRaw > 0 ? limitRaw : 30)));
     const search = typeof args.search === 'string' ? args.search.trim() : '';
@@ -386,7 +386,7 @@ export async function snapshotTool(scope: NetScope, store: SnapshotStore, args: 
     if (ref !== undefined) {
       const device = resolveDevice(await scope.devices(), ref, 'ros');
       const row = rows.find((r) => r.routerId === device.id);
-      if (!row) return { text: `[mikrotik_snapshot] ${device.name}: no snapshot yet (the worker has not fetched it, or the device family is not covered). Use mikrotik_read (live).${foot()}`, isError: false, action: `mikrotik_snapshot ${device.name}` };
+      if (!row) return { text: `${scope.m.noSnapshotForDevice(device.name)}${foot()}`, isError: false, action: `mikrotik_snapshot ${device.name}` };
       const d = row.data;
       const head = `[mikrotik_snapshot] ${row.alias} — ${row.takenAt === null ? 'NEVER succeeded' : `taken ${fmtAge(ageOf(row))} ago${stale(row) ? ' (STALE)' : ''}`}${failNote(row)}`;
       if (!d) return { text: `${head}${advice(true)}${foot()}`, isError: false, action: `mikrotik_snapshot ${row.alias}` };
@@ -435,6 +435,6 @@ export async function snapshotTool(scope: NetScope, store: SnapshotStore, args: 
     });
     return { text: `[mikrotik_snapshot] ${rows.length} router(s); newest data ${Number.isFinite(newest) ? fmtAge(newest) : '-'}, oldest ${fmtAge(oldest)}\n${clip(lines.join('\n'), 14_000)}${advice(rows.some(stale))}${foot()}`, isError: false, action: 'mikrotik_snapshot summary', data: { routers: rows.length } };
   } catch (e) {
-    return e instanceof PolicyDenied || e instanceof DeviceNotFound ? fail(`mikrotik_snapshot refused: ${e.message}`, 'policy') : fail(`mikrotik_snapshot failed: ${scrubMessage(e instanceof Error ? e.message : String(e))}`);
+    return e instanceof PolicyDenied || e instanceof DeviceNotFound ? fail(scope.m.refused('mikrotik_snapshot', e.message), 'policy') : fail(scope.m.failed('mikrotik_snapshot', scrubMessage(e instanceof Error ? e.message : String(e))));
   }
 }

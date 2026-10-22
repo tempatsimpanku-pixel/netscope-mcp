@@ -31,6 +31,7 @@ settings:
   probe: { deny_cidrs: [], allow_cidrs: [] }
   snapshot: { interval_min: 10, store_customer_data: false }
   audit_log: stderr
+  locale: en                            # en | id
   # state_dir: /var/lib/netscope-mcp     # default: $XDG_STATE_HOME/netscope-mcp or ~/.local/state/netscope-mcp
 
 defaults:
@@ -64,7 +65,8 @@ routers:
 | `snapshot.interval_min` | `10` | Minutes between snapshot cycles (2-1440). See [SNAPSHOT.md](SNAPSHOT.md). |
 | `snapshot.store_customer_data` | `false` | Also store PPP names/addresses/caller-ids in the snapshot file. |
 | `audit_log` | `stderr` | `stderr`, `off`, or a file path (created with mode 0600). `--audit-log` overrides it. |
-| `state_dir` | see above | SSH control sockets and pinned host keys (mode 0700). |
+| `locale` | `en` | Language of the sentences the server writes itself: headers, errors, footers (`refused`/`ditolak`, `failed`/`gagal`, `ERROR`/`GALAT`, `no rows`/`tidak ada baris`, `no snapshot yet`/`belum ada snapshot`…). Router output and the explanation of *why* a command was denied stay in English. |
+| `state_dir` | see above | SSH control sockets, the askpass helper and pinned host keys (mode 0700). |
 
 ### `defaults` and per-router overrides
 
@@ -97,7 +99,9 @@ Relative file paths are resolved against the directory of the routers file. Envi
 |---|---|---|
 | `api-ssl` (recommended) | 8729 | TLS with certificate verification; CA file or fingerprint pin. |
 | `api` | 8728 | **No TLS.** Credentials travel in clear text. Only on an isolated management network, with `allow_insecure: true`. |
-| SSH | `ssh.port` | Only for `export hide-sensitive`; host key always checked. Prefer `key_file`; without a key the router password is passed through `sshpass` (must be installed). Needs the OpenSSH client. |
+| SSH | `ssh.port` | Only for `export hide-sensitive`; host key always checked (pinned, or trust-on-first-use). Any port works (`ssh.port` is never guessed). Prefer `key_file`. Without a key the router password is given to OpenSSH through `SSH_ASKPASS` (OpenSSH 8.4 or newer, no `sshpass` needed): see below. |
+
+**SSH with a password.** The server writes a fixed helper (`askpass.sh`, mode 0700, no secret inside) to the SSH state directory and starts `ssh` with `SSH_ASKPASS` and `SSH_ASKPASS_REQUIRE=force`. The password is in the environment of that one child process only: not in the command line (`/proc/<pid>/cmdline`), not on disk, not in logs. The helper answers a *password* prompt and refuses every other prompt (host-key questions, passphrases), so the host-key check cannot be bypassed. If the OpenSSH client is older than 8.4 or missing, `export` returns a short explanation instead of a stack trace; use `key_file` there, or `print` per menu. The router user needs the `ssh` policy ([guide](ROUTEROS-READONLY-USER.md)).
 
 To pin a self-signed certificate: `openssl s_client -connect 192.0.2.10:8729 </dev/null 2>/dev/null | openssl x509 -noout -fingerprint -sha256`, and paste the value into `tls_fingerprint256`.
 
@@ -131,3 +135,7 @@ Generic client entry:
 ## Audit log
 
 Each call is one JSON line: tool, device, normalized command, duration, result status. Secret values are never logged.
+
+## Embedding: `locale` and `messages`
+
+`new NetScope({ ..., locale: 'id' })` selects the built-in Indonesian frame (default `'en'`; an unknown value throws at construction). To change single sentences, pass a partial dictionary on top of it: `messages: { error: 'GALAT', footer: (ms, route) => \`(${ms} ms${route})\` }`. The full set of keys is the `Messages` interface exported from `netscope-mcp/core` (`MESSAGES`, `resolveMessages`). Only the frame is translated: router output, command-policy explanations and the structured `data` payload are unchanged.

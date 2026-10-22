@@ -4,6 +4,7 @@ export * from './engine.js';
 export * from './errors.js';
 export * from './format.js';
 export * from './limits.js';
+export * from './messages.js';
 export * from './pool.js';
 export * from './redact.js';
 export * from './snapshot.js';
