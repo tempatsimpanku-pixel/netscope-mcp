@@ -66,7 +66,8 @@
     "test:security": "vitest run test/security --passWithNoTests",
     "start": "node dist/cli.js",
     "check:server-json": "node scripts/check-server-json.mjs",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "prepublishOnly": "npm run typecheck && npm run check:server-json && npm test && npm run build"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.1",
