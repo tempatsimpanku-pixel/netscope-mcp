@@ -6,6 +6,14 @@ this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-10-23
+
+### Fixed
+- `--help` banner, `--version` and the MCP `serverInfo.version` reported `0.1.0` in the 0.1.1 release. The version is now read from `package.json` at run time (`src/version.ts`), a single source; integration tests assert all three match `package.json`.
+
+### Changed
+- Release workflow skips `npm publish` when the tagged version is already on the registry, so a re-run (or a version published by hand) still produces the GitHub release.
+
 ### Added
 - `prepublishOnly` script: typecheck, `server.json` check, tests and build run before any `npm publish`.
 

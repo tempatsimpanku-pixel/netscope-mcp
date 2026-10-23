@@ -12,6 +12,7 @@ import { fakeRos, type FakeRos } from '../helpers/fake-ros.js';
 const root = path.resolve(import.meta.dirname, '..', '..');
 const cli = path.join(root, 'dist', 'cli.js');
 const TOKEN = 'x'.repeat(40);
+const PKG_VERSION = (JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')) as { version: string }).version;
 const EXPECTED_TOOLS = ['list_devices', 'mikrotik_batch', 'mikrotik_read', 'mikrotik_recipe', 'mikrotik_snapshot', 'ping', 'snmp_get', 'switch_read', 'traceroute'];
 
 let dir: string; let ros: FakeRos; let cfgFile: string; let env: Record<string, string>;
@@ -50,7 +51,7 @@ describe('MCP over stdio (spawned CLI)', () => {
     const before = ros.st.sentences.length;
     const client = new Client({ name: 'test', version: '1' });
     await client.connect(new StdioClientTransport({ command: process.execPath, args: [cli, '--config', cfgFile], env, stderr: 'ignore' }));
-    try { await exercise(client); } finally { await client.close(); }
+    try { expect(client.getServerVersion()?.version).toBe(PKG_VERSION); await exercise(client); } finally { await client.close(); }
     const paths = ros.st.sentences.slice(before).map((w) => w[0]);
     expect(paths.length).toBeGreaterThan(0);
     for (const p of paths) expect(p).toBe('/ip/address/print');
@@ -73,6 +74,7 @@ describe('MCP over Streamable HTTP (spawned CLI)', () => {
     const client = new Client({ name: 'test', version: '1' });
     await client.connect(new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${port}/mcp`), { requestInit: { headers: { authorization: `Bearer ${TOKEN}` } } }));
     try {
+      expect(client.getServerVersion()?.version).toBe(PKG_VERSION);
       const tools = await client.listTools(); expect(tools.tools).toHaveLength(EXPECTED_TOOLS.length);
       const snap = await client.callTool({ name: 'mikrotik_snapshot', arguments: {} }) as { content: Array<{ text: string }> };
       expect(snap.content[0]!.text).toMatch(/no snapshot yet|router\(s\)/);
@@ -106,7 +108,8 @@ describe('CLI start-up checks', () => {
   });
   it('--check validates the config; --version prints the version', async () => {
     expect((await run(['--config', cfgFile, '--check'])).code).toBe(0);
-    expect((await run(['--version'])).stdout.trim()).toBe('0.1.0');
+    expect((await run(['--version'])).stdout.trim()).toBe(PKG_VERSION);
+    expect((await run(['--help'])).stdout.split('\n')[0]).toBe(`netscope-mcp ${PKG_VERSION} — read-only MCP server for ISP/NOC operators`);
   });
   it('a missing environment variable is reported by name without leaking values', async () => {
     const r = await run(['--config', cfgFile, '--check'], { PATH: env.PATH! });

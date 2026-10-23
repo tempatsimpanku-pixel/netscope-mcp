@@ -6,8 +6,8 @@ import { ConfigError, checkPrivateFile, loadConfig } from './server/config.js';
 import { MIN_TOKEN_LENGTH, startHttpServer } from './server/http.js';
 import { createMcpServer } from './server/mcp.js';
 import { buildServer } from './server/run.js';
+import { VERSION } from './version.js';
 
-const VERSION = '0.1.0';
 const USAGE = `netscope-mcp ${VERSION} — read-only MCP server for ISP/NOC operators
 
 Usage: netscope-mcp --config routers.yaml [options]

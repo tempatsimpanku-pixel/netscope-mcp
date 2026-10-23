@@ -83,8 +83,15 @@ jobs:
       - name: Publish
         env:
           PRERELEASE: ${{ needs.verify.outputs.prerelease }}
+          VERSION: ${{ needs.verify.outputs.version }}
         run: |
           set -euo pipefail
+          # Idempotent re-runs: a version already on the registry is not published again
+          # (npm versions are immutable), so the GitHub release step can still complete.
+          if npm view "netscope-mcp@$VERSION" version >/dev/null 2>&1; then
+            echo "netscope-mcp@$VERSION is already on npm; skipping publish."
+            exit 0
+          fi
           TAGOPT=()
           [ "$PRERELEASE" = "true" ] && TAGOPT=(--tag next)
           npm publish --provenance --access public "${TAGOPT[@]}"
